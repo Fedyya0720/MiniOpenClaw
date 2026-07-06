@@ -6,10 +6,33 @@
 """
 from __future__ import annotations
 import argparse
+import os
 import sys
+from pathlib import Path
 
 from tools.base import build_default_registry
 from agent.prompts import SYSTEM_PROMPT
+
+
+def _load_dotenv() -> None:
+    """从项目根目录 .env 加载环境变量（仅在未设置时生效），免去每次手动 export。"""
+    env_path = Path(__file__).resolve().parent.parent / ".env"
+    if not env_path.is_file():
+        return
+    for raw in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key, value = key.strip(), value.strip()
+        # 去掉可选引号
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in ('"', "'"):
+            value = value[1:-1]
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
+_load_dotenv()
 
 
 def selfcheck() -> int:

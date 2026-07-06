@@ -42,10 +42,15 @@ mini-OpenClaw 是一个 Claude Code 式的命令行 Agent：
 conda create -n openclaw python=3.11 && conda activate openclaw
 pip install -r requirements.txt
 
-# 2. 先跑通骨架的"假后端"自检（Day1 就能跑）
+# 2. 配置大模型 API（可选；不配也能用 FakeBackend 跑通骨架）
+cp .env.example .env
+# 编辑 .env，填入你的 DEEPSEEK_API_KEY / DEEPSEEK_BASE_URL / DEEPSEEK_MODEL
+# CLI 启动时会自动加载 .env，无需每次手动 export
+
+# 3. 先跑通骨架的"假后端"自检（Day1 就能跑）
 python -m agent.cli --selfcheck
 
-# 3. 之后每天填对应模块，重跑相关入口
+# 4. 之后每天填对应模块，重跑相关入口
 ```
 
 ## 里程碑
