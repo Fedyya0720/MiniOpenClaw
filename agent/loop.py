@@ -15,15 +15,17 @@ from __future__ import annotations
 from typing import Any
 
 from tools.base import ToolRegistry
+from agent.context import estimate_tokens, maybe_compact, truncate_observation
 
 
 class AgentLoop:
     def __init__(self, backend: Any, registry: ToolRegistry, system_prompt: str,
-                 max_turns: int = 20):
+                 max_turns: int = 20, token_budget: int = 8000):
         self.backend = backend
         self.registry = registry
         self.system_prompt = system_prompt
         self.max_turns = max_turns          # 防死循环：硬上限
+        self.token_budget = token_budget    # 触发 compaction 的 token 阈值
 
     def run(self, user_task: str) -> str:
         messages: list[dict[str, Any]] = [
@@ -31,6 +33,10 @@ class AgentLoop:
             {"role": "user", "content": user_task},
         ]
         for turn in range(self.max_turns):
+            # Day7: context management — compact if over budget
+            if estimate_tokens(messages) > self.token_budget:
+                messages = maybe_compact(messages, self.token_budget)
+
             assistant = self.backend.chat(messages, tools=self.registry.schemas())
             messages.append({"role": "assistant",
                              "content": assistant.get("content", ""),
@@ -40,17 +46,19 @@ class AgentLoop:
             if not tool_calls:
                 return assistant.get("content", "")
 
-            # TODO[Day5] 分发并执行工具，把每个结果作为 role="tool" 注入 messages：
             for call in tool_calls:
                 tool = self.registry.get(call["name"])
                 if tool is None:
                     obs = f"错误：未知工具 {call['name']}"
                 else:
-                    # TODO[Day7] 加错误恢复（try/except，把异常文本作为 observation，让模型自我修复）
-                    obs = tool.run(**call.get("arguments", {}))
+                    # Day7: error recovery — exception text as observation
+                    try:
+                        obs = tool.run(**call.get("arguments", {}))
+                    except Exception as e:
+                        obs = f"工具执行错误（{call['name']}）：{e}\n请检查参数并重试。"
+                # Day7: truncate long observations
+                obs = truncate_observation(str(obs))
                 messages.append({"role": "tool", "name": call["name"],
-                                 "tool_call_id": call.get("id"), "content": str(obs)})
-
-            # TODO[Day7] 在这里做上下文管理：超出 token 预算时触发 compaction（见 agent/context.py）
+                                 "tool_call_id": call.get("id"), "content": obs})
 
         return "[达到最大轮数上限，未完成任务]"

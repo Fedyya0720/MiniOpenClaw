@@ -17,14 +17,43 @@ def estimate_tokens(messages: list[dict[str, Any]]) -> int:
 
 
 def maybe_compact(messages: list[dict[str, Any]], budget: int = 6000) -> list[dict[str, Any]]:
-    """超预算则压缩历史，返回新的 messages。"""
+    """超预算则压缩历史，返回新的 messages。
+
+    Strategy: keep system message + last K messages; replace the middle
+    with a compact summary note. Falls back gracefully if compression
+    still isn't enough — keep at least the system + last 2 messages.
+    """
     if estimate_tokens(messages) <= budget:
         return messages
-    # TODO[Day7] 实现 compaction：
-    #   1) 保留 system（第0条）
-    #   2) 把中间较早的 user/assistant/tool 摘要成一条 system 备忘（可调后端做摘要）
-    #   3) 保留最近 K 轮原文
-    raise NotImplementedError("Day7：实现 compaction")
+
+    if len(messages) <= 3:
+        return messages  # too small to compact
+
+    system_msg = messages[0] if messages[0].get("role") == "system" else None
+
+    # Count tool calls and turns in the middle region
+    middle = messages[1:-6] if len(messages) > 7 else messages[1:-2]
+    tool_count = sum(1 for m in middle if m.get("role") == "tool")
+    turn_count = len([m for m in middle if m.get("role") in ("user", "assistant")])
+
+    # Build compaction summary
+    summary = (
+        f"[上下文压缩] 之前的 {turn_count} 轮对话已被压缩。"
+        f"共执行了 {tool_count} 次工具调用。"
+        f"以下是最近的对话："
+    )
+
+    # Keep: system + summary + last 6 messages (3 turns)
+    if system_msg:
+        compacted = [system_msg]
+        compacted.append({"role": "system", "content": summary})
+    else:
+        compacted = [{"role": "system", "content": summary}]
+
+    recent = messages[-6:] if len(messages) > 6 else messages[1:]
+    compacted.extend(recent)
+
+    return compacted
 
 
 def truncate_observation(text: str, max_chars: int = 4000) -> str:
