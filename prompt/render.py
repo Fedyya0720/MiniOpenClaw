@@ -13,6 +13,8 @@ Day3 你要：
 from __future__ import annotations
 from typing import Any
 import json
+import re
+import warnings
 
 # DeepSeek ChatML variant role tokens as (begin, end) pairs.
 # BOS/EOS framing is NOT included — the caller/tokenizer is responsible.
@@ -118,6 +120,63 @@ def render_prompt(messages: list[dict[str, Any]], tools: list[dict[str, Any]] | 
 
 
 def parse_tool_calls(text: str) -> list[dict[str, Any]]:
-    """从模型生成的文本里解析出工具调用（手动解析，不依赖 API）。"""
-    # TODO[Day3] 用正则/状态机提取所有 <tool_call>...</tool_call>，json.loads 出 name/arguments
-    raise NotImplementedError("Day3：实现 parse_tool_calls")
+    """从模型生成的文本里解析出工具调用（手动解析，不依赖 API）。
+
+    返回 list[dict]，每个 dict 至少包含 name (str) 和 arguments (dict)，
+    额外字段（如 id）原样保留。
+    """
+    pattern = r"<\s*tool_call\s*>(.*?)<\s*/\s*tool_call\s*>"
+    matches = re.findall(pattern, text, re.DOTALL)
+
+    result: list[dict[str, Any]] = []
+
+    for match in matches:
+        # 1. Parse JSON inside the tags
+        try:
+            parsed = json.loads(match)
+        except (json.JSONDecodeError, TypeError) as e:
+            warnings.warn(
+                f"Skipping tool_call block with malformed JSON: {e}",
+                UserWarning,
+            )
+            continue
+
+        if not isinstance(parsed, dict):
+            warnings.warn(
+                "Skipping tool_call block: parsed JSON is not a dict",
+                UserWarning,
+            )
+            continue
+
+        # 2. Validate "name": required, must be string
+        name = parsed.get("name")
+        if name is None:
+            warnings.warn(
+                "Skipping tool_call block: missing 'name' field",
+                UserWarning,
+            )
+            continue
+        if not isinstance(name, str):
+            warnings.warn(
+                f"Skipping tool_call block: 'name' must be a string, got {type(name).__name__}",
+                UserWarning,
+            )
+            continue
+
+        # 3. Validate "arguments": missing or null → default to {}; non-dict → skip
+        if "arguments" in parsed and parsed["arguments"] is not None:
+            if not isinstance(parsed["arguments"], dict):
+                warnings.warn(
+                    f"Skipping tool_call block: 'arguments' must be a dict, "
+                    f"got {type(parsed['arguments']).__name__}",
+                    UserWarning,
+                )
+                continue
+        else:
+            # arguments key is missing or its value is None → default to {}
+            parsed["arguments"] = {}
+
+        # 4. Keep all fields (name, arguments, plus extras like id)
+        result.append(parsed)
+
+    return result
