@@ -14,20 +14,18 @@ from __future__ import annotations
 from typing import Any
 import json
 
-# 不同模型的对话模板不同（ChatML / Llama / GLM）。这里以 GLM 风格为例占位。
-# TODO[Day3] 校对你所用模型的真实特殊标记！拼错一个 token，模型行为就会跑偏。
+# DeepSeek ChatML variant role tokens as (begin, end) pairs.
+# BOS/EOS framing is NOT included — the caller/tokenizer is responsible.
 ROLE_TOKENS = {
-    "system": "<|system|>",
-    "user": "<|user|>",
-    "assistant": "<|assistant|>",
-    "tool": "<|observation|>",
+    "system": ("<|begin_of_system|>", "<|end_of_system|>"),
+    "user": ("<|begin_of_user|>", "<|end_of_user|>"),
+    "assistant": ("<|begin_of_assistant|>", "<|end_of_assistant|>"),
+    "tool": ("<|begin_of_tool|>", "<|end_of_tool|>"),
 }
 
 
 def render_tools_block(tools: list[dict[str, Any]]) -> str:
     """把 tool schema 列表渲染成放进 system 段的文本说明。"""
-    # TODO[Day3] 设计一个清晰的工具说明格式，并约定模型用
-    #   <tool_call>{"name": ..., "arguments": {...}}</tool_call> 来调用。
     if not tools:
         return ""
     lines = ["你可以调用以下工具，调用格式：<tool_call>{\"name\": ..., \"arguments\": {...}}</tool_call>"]
@@ -40,13 +38,83 @@ def render_tools_block(tools: list[dict[str, Any]]) -> str:
 def render_prompt(messages: list[dict[str, Any]], tools: list[dict[str, Any]] | None = None) -> str:
     """messages + tools -> 一整段送入模型的文本。
 
-    这是 Day3 的提交物。下面是骨架，请按你所用模型的模板补全。
+    不包含 BOS/EOS 标记——由调用方/tokenizer 负责。
+    末尾始终以 assistant begin token 结尾，提示模型开始生成。
     """
+    # --- 输入校验 ---
+    if not isinstance(messages, list):
+        raise TypeError(f"messages must be a list, got {type(messages).__name__}")
+
+    # --- 渲染工具说明 ---
+    tools_text = ""
+    if tools:
+        tools_text = render_tools_block(tools)
+
     parts: list[str] = []
-    # TODO[Day3] 把 tools 说明并入 system 段
-    # TODO[Day3] 逐条 message 用 ROLE_TOKENS 包裹拼接
-    # TODO[Day3] 末尾以 assistant 起始标记结尾，提示模型开始生成
-    raise NotImplementedError("Day3：实现 render_prompt")
+    tools_rendered = False
+
+    for i, msg in enumerate(messages):
+        if not isinstance(msg, dict):
+            raise TypeError(f"messages[{i}] must be a dict, got {type(msg).__name__}")
+
+        role = msg.get("role")
+        if role is None:
+            raise TypeError(f"messages[{i}] is missing required 'role' key")
+        if role not in ROLE_TOKENS:
+            raise ValueError(f"unknown role: {role!r}")
+
+        begin, end = ROLE_TOKENS[role]
+        content = msg.get("content", "")
+        if content is None:
+            content = ""
+
+        # 系统消息 + 工具说明：把工具说明放在系统段最前面
+        if role == "system" and tools_text and not tools_rendered:
+            content = tools_text + "\n" + content if content else tools_text
+            tools_rendered = True
+
+        # 助手消息中的工具调用
+        if role == "assistant":
+            tool_calls = msg.get("tool_calls", [])
+            if tool_calls:
+                tc_parts: list[str] = []
+                for tc in tool_calls:
+                    if not isinstance(tc, dict):
+                        continue
+                    name = tc.get("name")
+                    if name is None:
+                        continue  # 跳过没有 name 的工具调用
+                    arguments = tc.get("arguments", {})
+                    if arguments is None:
+                        arguments = {}
+                    tc_json = json.dumps(
+                        {"name": name, "arguments": arguments},
+                        ensure_ascii=False,
+                        separators=(",", ":"),
+                    )
+                    tc_parts.append(f"<tool_call>{tc_json}</tool_call>")
+                if tc_parts:
+                    tc_text = "\n".join(tc_parts)
+                    content = content + "\n" + tc_text if content else tc_text
+
+        # 工具/观测消息：在内容前加上工具名
+        if role == "tool":
+            name = msg.get("name")
+            if name is not None:
+                content = f"{name}: {content}"
+
+        parts.append(f"{begin}{content}{end}")
+
+    # 有工具说明但没有任何 system 消息 → 创建合成 system 段
+    if tools_text and not tools_rendered:
+        sys_begin, sys_end = ROLE_TOKENS["system"]
+        parts.insert(0, f"{sys_begin}{tools_text}{sys_end}")
+
+    # 末尾始终以 assistant begin token 结尾，提示模型开始生成
+    assistant_begin, _ = ROLE_TOKENS["assistant"]
+    parts.append(assistant_begin)
+
+    return "".join(parts)
 
 
 def parse_tool_calls(text: str) -> list[dict[str, Any]]:
