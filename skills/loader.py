@@ -29,8 +29,31 @@ class Skill:
 
 
 def parse_skill_md(text: str, path: Path) -> Skill:
-    # TODO[Day9] 解析 YAML frontmatter（name/description）+ 正文 body
-    raise NotImplementedError("Day9：解析 SKILL.md frontmatter")
+    """Parse YAML frontmatter (name/description) + markdown body from SKILL.md."""
+    lines = text.split("\n")
+    name = path.parent.name  # fallback: directory name
+    description = ""
+    body = ""
+
+    if lines and lines[0].strip() == "---":
+        # Find closing ---
+        end = 1
+        while end < len(lines) and lines[end].strip() != "---":
+            end += 1
+        # Parse frontmatter lines
+        for line in lines[1:end]:
+            stripped = line.strip()
+            if stripped.startswith("name:"):
+                name = stripped[5:].strip()
+            elif stripped.startswith("description:"):
+                description = stripped[12:].strip()
+        # Body is everything after closing ---
+        body = "\n".join(lines[end + 1:]).strip()
+    else:
+        # No frontmatter — entire file is body
+        body = text.strip()
+
+    return Skill(name=name, description=description, body=body, path=path)
 
 
 def load_skills(root: str = "skills") -> list[Skill]:
