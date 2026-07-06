@@ -65,11 +65,11 @@ def build_default_registry() -> ToolRegistry:
     for t in (read_tool, write_tool, bash_tool):
         reg.register(t)
 
-    # TODO[Day6] 再加入完整工具集（→ v1 里程碑）：
-    # from .more_tools import edit_tool, grep_tool, glob_tool
-    # for t in (edit_tool, grep_tool, glob_tool):
-    #     reg.register(t)
-    #
+    # Day6 complete: register extended tools (→ v1 milestone!)
+    from .more_tools import edit_tool, grep_tool, glob_tool
+    for t in (edit_tool, grep_tool, glob_tool):
+        reg.register(t)
+
     # TODO[Day7] 再加入：
     # from .more_tools import web_fetch_tool, task_list_tool
     return reg

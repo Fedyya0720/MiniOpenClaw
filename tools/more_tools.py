@@ -4,26 +4,82 @@
 建议最终拆成 edit.py / search.py / web.py / todo.py，再在 base.build_default_registry 注册。
 """
 from __future__ import annotations
+import subprocess
+from pathlib import Path
 from .base import Tool
 
 
-# --- edit：三种策略权衡（整文件重写 / unified diff / search-replace）---
+# --- edit：search-replace（最稳策略）---
 def _edit(path: str, old: str = "", new: str = "") -> str:
-    # TODO[Day6] 先实现最稳的 search-replace（old 在文件中唯一时替换为 new）
-    #            进阶：支持 unified diff / 整文件重写，比较失败率
-    raise NotImplementedError("Day6：实现 edit")
+    """Replace `old` text with `new` in a file. Requires unique match."""
+    try:
+        content = Path(path).read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return f"错误：文件不存在 {path}"
+    except Exception as e:
+        return f"错误：无法读取文件 {path} — {e}"
+
+    count = content.count(old)
+    if count == 0:
+        return f"错误：未找到要替换的文本（共 0 处匹配）"
+    if count > 1:
+        return f"错误：找到 {count} 处匹配，old 文本必须唯一。请使用更多上下文使其唯一。"
+
+    new_content = content.replace(old, new, 1)
+    try:
+        Path(path).write_text(new_content, encoding="utf-8")
+    except Exception as e:
+        return f"错误：无法写入文件 {path} — {e}"
+
+    return f"成功替换 {path}（1 处修改）"
 
 
 # --- grep：基于 ripgrep ---
 def _grep(pattern: str, path: str = ".") -> str:
-    # TODO[Day6] 调用系统 rg，返回匹配行（带文件名+行号）。与 glob 互补：grep 搜内容，glob 搜路径
-    raise NotImplementedError("Day6：实现 grep")
+    """Search files using ripgrep. Returns matches with filename:lineno:content."""
+    try:
+        result = subprocess.run(
+            ["rg", "--line-number", "--no-heading", pattern, path],
+            capture_output=True, text=True, timeout=30,
+        )
+    except FileNotFoundError:
+        return "错误：未找到 ripgrep (rg)。请安装：apt install ripgrep 或 brew install ripgrep"
+    except subprocess.TimeoutExpired:
+        return "错误：grep 超时（30s）"
+
+    if result.returncode == 1:
+        return "未找到匹配项。"
+    if result.returncode > 1:
+        return f"rg 错误：{result.stderr.strip()}" if result.stderr else f"rg 退出码 {result.returncode}"
+
+    output = result.stdout.rstrip()
+    if not output:
+        return "未找到匹配项。"
+    # Truncate long output
+    lines = output.split("\n")
+    if len(lines) > 200:
+        output = "\n".join(lines[:200]) + f"\n...[已截断，共 {len(lines)} 行匹配]"
+    return output
 
 
 # --- glob：按文件名模式找文件 ---
 def _glob(pattern: str) -> str:
-    # TODO[Day6] 用 pathlib.Path().glob / rglob 找路径
-    raise NotImplementedError("Day6：实现 glob")
+    """Find files matching a glob pattern using pathlib."""
+    try:
+        matches = list(Path(".").rglob(pattern))
+    except Exception as e:
+        return f"错误：glob 模式无效 — {e}"
+
+    if not matches:
+        return "未找到匹配的文件。"
+
+    # Sort and truncate
+    matches.sort()
+    if len(matches) > 200:
+        result = "\n".join(str(m) for m in matches[:200])
+        result += f"\n...[已截断，共 {len(matches)} 个文件]"
+        return result
+    return "\n".join(str(m) for m in matches)
 
 
 # --- web_fetch：URL -> markdown，控 token 预算 ---
