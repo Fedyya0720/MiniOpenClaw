@@ -6,6 +6,7 @@
 from __future__ import annotations
 import subprocess
 from pathlib import Path
+import json
 from .base import Tool
 
 
@@ -84,14 +85,81 @@ def _glob(pattern: str) -> str:
 
 # --- web_fetch：URL -> markdown，控 token 预算 ---
 def _web_fetch(url: str, max_tokens: int = 2000) -> str:
-    # TODO[Day7] httpx 抓取 -> markdownify 转 markdown -> 截断到预算内
-    raise NotImplementedError("Day7：实现 web_fetch")
+    """Fetch a URL and convert to markdown, truncated to token budget."""
+    try:
+        import httpx
+    except ImportError:
+        return "错误：需要 httpx 库。运行：pip install httpx"
+
+    try:
+        response = httpx.get(url, timeout=15.0, follow_redirects=True)
+        response.raise_for_status()
+    except httpx.TimeoutException:
+        return f"错误：请求超时 — {url}"
+    except httpx.HTTPStatusError as e:
+        return f"错误：HTTP {e.response.status_code} — {url}"
+    except Exception as e:
+        return f"错误：无法获取 {url} — {e}"
+
+    # Try markdownify; fall back to plain text
+    try:
+        from markdownify import markdownify
+        text = markdownify(response.text)
+    except ImportError:
+        text = response.text[:max_tokens * 4]  # rough char budget
+
+    # Truncate to token budget (rough: chars/4)
+    max_chars = max_tokens * 4
+    if len(text) > max_chars:
+        text = text[:max_chars] + f"\n...[已截断，共 {len(text)} 字符]"
+
+    return text
 
 
 # --- task_list（TodoWrite）：自维护待办，提升长任务成功率 ---
+_TASKS: list[dict] = []  # module-level task state
+
 def _task_list(action: str, items: list | None = None) -> str:
-    # TODO[Day7] 维护一个结构化待办（add/update/complete），作为模型的 scratchpad
-    raise NotImplementedError("Day7：实现 task_list")
+    """Maintain a structured todo list (add/update/complete)."""
+    action = action.strip().lower()
+
+    if action == "add" and items:
+        added = []
+        for item in items:
+            if isinstance(item, dict):
+                item["_id"] = len(_TASKS) + 1
+                _TASKS.append(item)
+                added.append(f"  [{item['_id']}] {item.get('content', item.get('title', str(item)))}")
+        return "已添加任务：\n" + "\n".join(added) if added else "未添加任何任务。"
+
+    elif action == "update" and items:
+        for update in items:
+            tid = update.get("id")
+            for t in _TASKS:
+                if t["_id"] == tid:
+                    t.update(update)
+        return f"已更新 {len(items)} 个任务。"
+
+    elif action == "complete" and items:
+        ids = [i.get("id") for i in items if isinstance(i, dict)]
+        remaining = [t for t in _TASKS if t["_id"] not in ids]
+        completed = len(_TASKS) - len(remaining)
+        _TASKS.clear()
+        _TASKS.extend(remaining)
+        return f"已完成 {completed} 个任务。剩余 {len(_TASKS)} 个。"
+
+    elif action == "list" or action == "show":
+        if not _TASKS:
+            return "当前没有待办任务。"
+        lines = ["当前待办："]
+        for t in _TASKS:
+            status = t.get("status", "pending")
+            content = t.get("content", t.get("title", str(t)))
+            lines.append(f"  [{t['_id']}] [{status}] {content}")
+        return "\n".join(lines)
+
+    else:
+        return f"未知操作：{action}。支持：add, update, complete, list"
 
 
 edit_tool = Tool("edit", "编辑文件：把 old 文本替换为 new。",

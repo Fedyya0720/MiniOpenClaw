@@ -70,6 +70,9 @@ def build_default_registry() -> ToolRegistry:
     for t in (edit_tool, grep_tool, glob_tool):
         reg.register(t)
 
-    # TODO[Day7] 再加入：
-    # from .more_tools import web_fetch_tool, task_list_tool
+    # Day7 complete: register web + todo tools
+    from .more_tools import web_fetch_tool, task_list_tool
+    for t in (web_fetch_tool, task_list_tool):
+        reg.register(t)
+
     return reg
