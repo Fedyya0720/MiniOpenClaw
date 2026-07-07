@@ -54,6 +54,104 @@ class DeepSeekBackend:
         msg = resp.json()["choices"][0]["message"]
         return self._normalize(msg)
 
+    def chat_stream(self, messages: list[dict[str, Any]], tools: list[dict] | None = None,
+                    temperature: float = 0.0):
+        """流式对话补全（Day11 TUI 用），逐 token 产出结构化事件。
+
+        事件类型：
+          {"type": "content", "content": "好"}              -- 文本增量
+          {"type": "tool_call_start", "index": 0,          -- 新工具调用开始
+           "id": "call_xxx", "name": "read"}
+          {"type": "tool_call_args", "index": 0,           -- 工具参数增量
+           "delta": "{\\"path\\":"}
+          {"type": "done", "content": "...",               -- 完整响应
+           "tool_calls": [{"id":"call_xxx","name":"read","arguments":{...}}]}
+        """
+        payload: dict[str, Any] = {
+            "model": self.model,
+            "messages": self._to_openai_messages(messages),
+            "temperature": temperature,
+            "stream": True,
+        }
+        if tools:
+            payload["tools"] = tools
+            payload["tool_choice"] = "auto"
+
+        collected_content: list[str] = []
+        tool_calls_acc: dict[int, dict[str, Any]] = {}  # index -> {id, name, args_str}
+
+        with self._client.stream(
+            "POST",
+            f"{self.base_url}/v1/chat/completions",
+            headers={"Authorization": f"Bearer {self.api_key}"},
+            json=payload,
+        ) as response:
+            response.raise_for_status()
+            for line in response.iter_lines():
+                if not line.startswith("data: "):
+                    continue
+                data_str = line[6:]
+                if data_str == "[DONE]":
+                    break
+                try:
+                    data = json.loads(data_str)
+                except json.JSONDecodeError:
+                    continue
+                choices = data.get("choices")
+                if not choices:
+                    continue
+                delta = choices[0].get("delta") or {}
+
+                # 文本增量
+                if delta.get("content"):
+                    collected_content.append(delta["content"])
+                    yield {"type": "content", "content": delta["content"]}
+
+                # 工具调用增量
+                for tc_delta in delta.get("tool_calls") or []:
+                    idx = tc_delta.get("index", 0)
+                    if idx not in tool_calls_acc:
+                        fn = tc_delta.get("function", {})
+                        tc_info = {
+                            "id": tc_delta.get("id", ""),
+                            "name": fn.get("name", ""),
+                            "args_str": fn.get("arguments", ""),
+                        }
+                        tool_calls_acc[idx] = tc_info
+                        yield {
+                            "type": "tool_call_start",
+                            "index": idx,
+                            "id": tc_info["id"],
+                            "name": tc_info["name"],
+                        }
+                    else:
+                        fn = tc_delta.get("function", {})
+                        if fn.get("arguments"):
+                            delta_args = fn["arguments"]
+                            tool_calls_acc[idx]["args_str"] += delta_args
+                            yield {
+                                "type": "tool_call_args",
+                                "index": idx,
+                                "delta": delta_args,
+                            }
+
+        # 组装最终响应
+        final_content = "".join(collected_content)
+        final_tool_calls: list[dict[str, Any]] = []
+        for idx in sorted(tool_calls_acc):
+            tc = tool_calls_acc[idx]
+            try:
+                args = json.loads(tc["args_str"]) if tc["args_str"] else {}
+            except json.JSONDecodeError:
+                args = {}
+            final_tool_calls.append({
+                "id": tc["id"],
+                "name": tc["name"],
+                "arguments": args,
+            })
+        yield {"type": "done", "content": final_content,
+               "tool_calls": final_tool_calls}
+
     # --- 把内部 messages（含 role=tool）转成 OpenAI 标准格式 ---
     def _to_openai_messages(self, messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
         out = []

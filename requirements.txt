@@ -9,5 +9,9 @@ markdownify>=0.13    # web_fetch: HTML -> markdown
 # --- Day8 MCP（可选，最小客户端可不依赖官方 SDK）---
 # mcp>=1.0           # 官方 SDK，做对照时再装
 
+# --- Day11 TUI（交互式 REPL + 流式显示）---
+rich>=13.0           # 终端美化：Panel / Live 流式渲染
+prompt_toolkit>=3.0  # REPL 输入：历史记录、多行编辑
+
 # 说明：本课程大脑走 DeepSeek API，不本地部署模型、不做 LoRA，故无需 vllm/peft/torch 等重依赖。
 # （Day2 的 nanoGPT 实验请用单独的 conda 环境安装 torch，避免污染 agent 环境。）
