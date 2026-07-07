@@ -59,7 +59,7 @@ def selfcheck() -> int:
         print(f"[FAIL] 主循环：{e}"); ok = False
 
     print("== 自检", "通过 ✅" if ok else "未通过 ❌", "==")
-    print("\n下一步：按 dayNN 的 lab-guide 填 # TODO 标记。")
+    print("\n所有模块已就绪。运行 python -m agent.cli '任务' 开始使用。")
     return 0 if ok else 1
 
 

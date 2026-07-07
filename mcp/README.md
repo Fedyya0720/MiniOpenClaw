@@ -53,7 +53,6 @@ MCPClient.call_tool(name, arguments)
 
 ## Known Limitations
 
-- **No read timeout:** A hung MCP server blocks `readline()` forever
 - **No subprocess cleanup:** No `close()` or context manager for the subprocess
 - **No notification filtering:** Server-to-client notifications between request/response could be misinterpreted
 - **No resource or prompt MCP features:** Only `tools/list` and `tools/call` are implemented
