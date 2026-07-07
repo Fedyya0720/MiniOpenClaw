@@ -1,7 +1,12 @@
-"""文件读写工具（Day5：read / write）。"""
+"""文件读写工具（Day5：read / write；Day10：路径沙箱）。"""
 from __future__ import annotations
 import os
+from pathlib import Path as _Path
 from .base import Tool
+
+# Day10: Working directory confinement for write operations.
+# All write paths are resolved relative to this directory and blocked if they escape.
+_WRITE_ROOT = os.path.realpath(os.getcwd())
 
 
 def _read(path: str, max_bytes: int = 100_000) -> str:
@@ -54,15 +59,51 @@ def _read(path: str, max_bytes: int = 100_000) -> str:
     return result
 
 
+def _resolve_write_path(path: str) -> str | None:
+    """Resolve a write path and check it stays within the working directory.
+
+    Returns the resolved absolute path on success, or a blocking reason string
+    if the path escapes the allowed root.
+
+    Day10: permission/sandbox layer intercepts writes outside the working directory.
+    """
+    try:
+        abs_path = os.path.realpath(os.path.join(_WRITE_ROOT, path))
+    except (ValueError, OSError) as e:
+        return f"错误：路径解析失败 — {e}"
+
+    # Block writes that escape the working directory
+    if not abs_path.startswith(_WRITE_ROOT + os.sep) and abs_path != _WRITE_ROOT:
+        return (
+            f"⚠️ 安全拦截：写入路径 '{abs_path}' 超出了工作目录 '{_WRITE_ROOT}'。\n"
+            f"只允许在工作目录及其子目录内写入文件。"
+        )
+
+    # Block writes to hidden files/dirs that are system-critical
+    parts = _Path(abs_path).relative_to(_WRITE_ROOT).parts
+    for part in parts:
+        if part in (".git", ".env", ".ssh", ".gnupg"):
+            return f"⚠️ 安全拦截：禁止写入受保护的路径 '{part}'。"
+
+    return abs_path
+
+
 def _write(path: str, content: str) -> str:
     """Write content to a file, creating parent directories as needed.
 
     Overwrites existing files. Returns a confirmation message with
     the file path and byte count.
 
-    NOTE[Day10]: A permission/sandbox layer will later intercept writes
-    outside the working directory.
+    Day10 sandbox: resolves paths relative to the working directory and
+    blocks writes that attempt to escape it. System-protected paths
+    (.git, .env, .ssh, .gnupg) are also blocked.
     """
+    resolved = _resolve_write_path(path)
+    if isinstance(resolved, str) and resolved.startswith("⚠️"):
+        return resolved  # sandbox blocked the write
+
+    path = resolved
+
     try:
         os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     except (OSError, FileNotFoundError):

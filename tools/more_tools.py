@@ -84,8 +84,48 @@ def _glob(pattern: str) -> str:
 
 
 # --- web_fetch：URL -> markdown，控 token 预算 ---
+# Day10: SSRF protection — block internal/private IP ranges
+import ipaddress
+import re as _re
+
+_SSRF_BLOCKED = [
+    "127.0.0.0/8",       # loopback
+    "10.0.0.0/8",        # private
+    "172.16.0.0/12",     # private
+    "192.168.0.0/16",    # private
+    "169.254.0.0/16",    # link-local (AWS metadata, etc.)
+    "::1",               # IPv6 loopback
+    "fc00::/7",          # IPv6 unique local
+    "fe80::/10",         # IPv6 link-local
+    "0.0.0.0/8",         # current network
+]
+_SSRF_NETWORKS = [ipaddress.ip_network(n) for n in _SSRF_BLOCKED]
+
+
+def _is_internal_url(url: str) -> bool:
+    """Check if a URL targets an internal/private IP (SSRF protection)."""
+    # Extract hostname (handle http://, https://, and bare hosts)
+    match = _re.match(r"https?://([^/:]+)", url)
+    if not match:
+        return False  # can't parse — let httpx handle it
+    host = match.group(1)
+    try:
+        addr = ipaddress.ip_address(host)
+    except ValueError:
+        # Not an IP address — allow DNS resolution (httpx will handle)
+        return False
+    return any(addr in net for net in _SSRF_NETWORKS)
+
+
 def _web_fetch(url: str, max_tokens: int = 2000) -> str:
-    """Fetch a URL and convert to markdown, truncated to token budget."""
+    """Fetch a URL and convert to markdown, truncated to token budget.
+
+    Day10: SSRF protection blocks requests to internal/private IP addresses.
+    """
+    # Day10: SSRF check
+    if _is_internal_url(url):
+        return f"⚠️ 安全拦截：禁止访问内部地址 '{url}'（SSRF 防护）。"
+
     try:
         import httpx
     except ImportError:

@@ -10,10 +10,14 @@ from typing import Any
 
 
 def json_valid_rate(raw_outputs: list[str]) -> float:
-    """raw_outputs：模型为每条用例生成的 <tool_call>{...}</tool_call> 原文。"""
+    """raw_outputs：模型为每条用例生成的 <tool_call>{...}</tool_call> 原文。
+
+    Extracts the JSON portion via _extract_json() and validates with json.loads.
+    For more robust extraction from <tool_call> tags, consider reusing
+    prompt.render.parse_tool_calls().
+    """
     ok = 0
     for out in raw_outputs:
-        # TODO[Day7] 抽出 {...} 部分尝试 json.loads（可复用 prompt.render.parse_tool_calls）
         try:
             json.loads(_extract_json(out)); ok += 1
         except Exception:  # noqa
@@ -37,6 +41,10 @@ def arg_accuracy(preds: list[dict], expected_args: list[dict]) -> float:
 
 
 def _extract_json(text: str) -> str:
-    # TODO[Day7] 从 <tool_call>...</tool_call> 中取出 JSON 串
+    """Extract the outermost {...} JSON block from tool_call text.
+
+    For production use, prefer prompt.render.parse_tool_calls() which handles
+    <tool_call> tag boundaries and provides additional validation.
+    """
     start, end = text.find("{"), text.rfind("}")
     return text[start:end + 1] if start >= 0 else "{}"

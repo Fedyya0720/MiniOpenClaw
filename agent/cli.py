@@ -11,7 +11,8 @@ import sys
 from pathlib import Path
 
 from tools.base import build_default_registry
-from agent.prompts import SYSTEM_PROMPT
+from agent.prompts import build_system_prompt
+from skills.loader import load_skills, skills_catalog
 
 
 def _load_dotenv() -> None:
@@ -81,7 +82,9 @@ def main(argv: list[str] | None = None) -> int:
         from backend.fake_backend import FakeBackend
         print(f"[提示] 未启用真后端（{e}），回退 FakeBackend。配置 DEEPSEEK_API_KEY 后即用真模型。")
         backend = FakeBackend()
-    agent = AgentLoop(backend, reg, SYSTEM_PROMPT)
+    skills = load_skills()
+    system_prompt = build_system_prompt(skills_catalog(skills))
+    agent = AgentLoop(backend, reg, system_prompt)
     print(agent.run(args.task))
     return 0
 

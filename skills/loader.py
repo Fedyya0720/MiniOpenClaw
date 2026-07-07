@@ -65,6 +65,9 @@ def load_skills(root: str = "skills") -> list[Skill]:
 
 
 def skills_catalog(skills: list[Skill]) -> str:
-    """生成给模型看的可用 skill 清单（name + description），用于按需召回。"""
-    # TODO[Day9] 渲染成一段文本，放进系统提示词
+    """生成给模型看的可用 skill 清单（name + description），用于按需召回。
+
+    The returned string is injected into the system prompt via {skills_catalog}
+    placeholder, so the model can recognize when a skill should be activated.
+    """
     return "\n".join(f"- {s.name}: {s.description}" for s in skills)
