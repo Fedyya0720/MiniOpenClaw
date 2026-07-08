@@ -3,31 +3,7 @@ from __future__ import annotations
 import os
 import subprocess
 from .base import Tool
-
-# Day10: Dangerous command patterns — blocked or warned
-DANGEROUS_PATTERNS = [
-    "rm -rf /",
-    "rm -rf ~",
-    "sudo rm",
-    "mkfs.",
-    "dd if=",
-    "> /dev/sda",
-    ":(){ :|:& };:",  # fork bomb
-    "chmod 777 /",
-    "chown -R /",
-]
-
-
-def _check_sandbox(command: str) -> str | None:
-    """Check for dangerous commands. Returns error message or None if safe."""
-    cmd_lower = command.lower().replace(" ", "")
-    for pattern in DANGEROUS_PATTERNS:
-        if pattern.lower().replace(" ", "") in cmd_lower:
-            return (
-                f"⚠️ 安全警告：检测到潜在危险命令模式 '{pattern}'。\n"
-                f"此命令已被拦截。如需执行，请确认风险后使用更安全的替代方案。"
-            )
-    return None
+from .security import check_bash_sandbox
 
 
 def _bash(command: str, timeout: int = 30) -> str:
@@ -39,8 +15,8 @@ def _bash(command: str, timeout: int = 30) -> str:
     Day10 sandbox: blocks dangerous commands, warns on write operations
     outside the current working directory.
     """
-    # Day10: sandbox check
-    danger = _check_sandbox(command)
+    # Day10: sandbox check (delegates to tools/security.py)
+    danger = check_bash_sandbox(command)
     if danger:
         return danger
 

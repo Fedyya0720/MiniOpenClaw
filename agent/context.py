@@ -12,7 +12,7 @@ from typing import Any
 
 
 def estimate_tokens(messages: list[dict[str, Any]]) -> int:
-    # TODO[Day7] 粗估即可（字符数/4 或用 tokenizer 精确数）
+    """Rough token estimate: chars / 4 (standard heuristic, close enough for most models)."""
     return sum(len(str(m.get("content", ""))) for m in messages) // 4
 
 

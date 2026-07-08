@@ -84,8 +84,19 @@ def _glob(pattern: str) -> str:
 
 
 # --- web_fetch：URL -> markdown，控 token 预算 ---
+# Day10: SSRF protection delegates to tools/security.py
+from .security import is_internal_url
+
+
 def _web_fetch(url: str, max_tokens: int = 2000) -> str:
-    """Fetch a URL and convert to markdown, truncated to token budget."""
+    """Fetch a URL and convert to markdown, truncated to token budget.
+
+    Day10: SSRF protection blocks requests to internal/private IP addresses.
+    """
+    # Day10: SSRF check (delegates to tools/security.py)
+    if is_internal_url(url):
+        return f"⚠️ 安全拦截：禁止访问内部地址 '{url}'（SSRF 防护）。"
+
     try:
         import httpx
     except ImportError:

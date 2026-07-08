@@ -1,7 +1,9 @@
-"""文件读写工具（Day5：read / write）。"""
+"""文件读写工具（Day5：read / write；Day10：路径沙箱）。"""
 from __future__ import annotations
 import os
+from pathlib import Path as _Path
 from .base import Tool
+from .security import resolve_write_path
 
 
 def _read(path: str, max_bytes: int = 100_000) -> str:
@@ -60,9 +62,16 @@ def _write(path: str, content: str) -> str:
     Overwrites existing files. Returns a confirmation message with
     the file path and byte count.
 
-    NOTE[Day10]: A permission/sandbox layer will later intercept writes
-    outside the working directory.
+    Day10 sandbox: resolves paths relative to the working directory and
+    blocks writes that attempt to escape it. System-protected paths
+    (.git, .env, .ssh, .gnupg) are also blocked.
     """
+    resolved = resolve_write_path(path)
+    if isinstance(resolved, str) and resolved.startswith("⚠️"):
+        return resolved  # sandbox blocked the write
+
+    path = resolved
+
     try:
         os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     except (OSError, FileNotFoundError):

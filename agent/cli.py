@@ -11,7 +11,8 @@ import sys
 from pathlib import Path
 
 from tools.base import build_default_registry
-from agent.prompts import SYSTEM_PROMPT
+from agent.prompts import build_system_prompt
+from skills.loader import load_skills, skills_catalog
 
 
 def _load_dotenv() -> None:
@@ -58,15 +59,38 @@ def selfcheck() -> int:
         print(f"[FAIL] 主循环：{e}"); ok = False
 
     print("== 自检", "通过 ✅" if ok else "未通过 ❌", "==")
-    print("\n下一步：按 dayNN 的 lab-guide 填 # TODO 标记。")
+    print("\n所有模块已就绪。运行 python -m agent.cli '任务' 开始使用。")
     return 0 if ok else 1
+
+
+def _make_backend():
+    """统一的后端工厂：DeepSeek API → FakeBackend 兜底。"""
+    try:
+        from backend.client import DeepSeekBackend
+        return DeepSeekBackend()                       # 需要 DEEPSEEK_API_KEY
+    except Exception as e:  # noqa
+        from backend.fake_backend import FakeBackend
+        print(f"[提示] 未启用真后端（{e}），回退 FakeBackend。配置 DEEPSEEK_API_KEY 后即用真模型。")
+        return FakeBackend()
 
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="mini-openclaw")
     p.add_argument("task", nargs="?", help="要让 agent 完成的任务（自然语言）")
     p.add_argument("--selfcheck", action="store_true", help="只做骨架自检")
+    p.add_argument("--tui", "-t", action="store_true",
+                   help="启动交互式 TUI 模式（REPL + 流式显示）")
     args = p.parse_args(argv)
+
+    # --- TUI 模式 ---
+    if args.tui:
+        from agent.tui import run_tui
+        reg = build_default_registry()
+        backend = _make_backend()
+        skills = load_skills()
+        system_prompt = build_system_prompt(skills_catalog(skills))
+        run_tui(backend, reg, system_prompt)
+        return 0
 
     if args.selfcheck or not args.task:
         return selfcheck()
@@ -74,14 +98,10 @@ def main(argv: list[str] | None = None) -> int:
     # 真正跑任务：优先用 DeepSeek API；没配 key 时回退到 FakeBackend（离线打通管道）
     from agent.loop import AgentLoop
     reg = build_default_registry()
-    try:
-        from backend.client import DeepSeekBackend
-        backend = DeepSeekBackend()                       # 需要 DEEPSEEK_API_KEY
-    except Exception as e:  # noqa
-        from backend.fake_backend import FakeBackend
-        print(f"[提示] 未启用真后端（{e}），回退 FakeBackend。配置 DEEPSEEK_API_KEY 后即用真模型。")
-        backend = FakeBackend()
-    agent = AgentLoop(backend, reg, SYSTEM_PROMPT)
+    backend = _make_backend()
+    skills = load_skills()
+    system_prompt = build_system_prompt(skills_catalog(skills))
+    agent = AgentLoop(backend, reg, system_prompt)
     print(agent.run(args.task))
     return 0
 
