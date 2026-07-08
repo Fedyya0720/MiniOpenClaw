@@ -64,3 +64,44 @@ E2E_TASKS: list[E2ETask] = [
     E2ETask("multi-step", "创建一个 Python 项目：main.py 调用 lib/helper.py 里的函数，写 README，用 bash 运行验证",
             "项目结构完整，运行成功，README 描述了用法"),
 ]
+
+# ========== Day3 下午 · 评估 harness ==========
+
+# Trajectory 类型：一次任务运行的记录
+Trajectory = dict
+
+@dataclass
+class Task:
+    name: str
+    instruction: str                       # 给 agent 的指令
+    check: Callable[[Trajectory], bool]    # 成功判据：吃一条轨迹，判成败
+
+# ---- 成功判据（程序化优先）----
+def _check_read_config(traj: Trajectory) -> bool:
+    used_read = any(
+        tc["name"] == "read"
+        for s in traj["steps"] for tc in s.get("tool_calls", [])
+    )
+    return used_read and "30" in traj.get("final", "")
+
+def _check_list_dir(traj: Trajectory) -> bool:
+    return any(
+        tc["name"] == "bash" and "ls" in str(tc.get("arguments", {}))
+        for s in traj["steps"] for tc in s.get("tool_calls", [])
+    )
+
+def _check_read_code(traj: Trajectory) -> bool:
+    """代码阅读领域：成功 = 调用过 read 且最终答复包含代码关键信息（函数名或类名）。"""
+    used_read = any(
+        tc["name"] == "read"
+        for s in traj["steps"] for tc in s.get("tool_calls", [])
+    )
+    final = traj.get("final", "")
+    has_code_info = any(kw in final for kw in ["函数", "类", "def ", "class ", "功能", "实现"])
+    return used_read and has_code_info
+
+SAMPLE_TASKS: list[Task] = [
+    Task("read-config", "读取 config.json，告诉我 timeout 是多少", _check_read_config),
+    Task("list-dir", "列出当前目录下的文件", _check_list_dir),
+    Task("read-code", "读取 main.py 并解释 main 函数的功能", _check_read_code),
+]
