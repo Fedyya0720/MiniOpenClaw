@@ -82,10 +82,22 @@ def main(argv: list[str] | None = None) -> int:
                    help="启动交互式 TUI 模式（REPL + 流式显示）")
     args = p.parse_args(argv)
 
+    # --- MCP 工具接入 ---
+    def _wire_mcp(reg):
+        """尝试连接 MCP echo server，将其工具并入注册表。失败不阻塞启动。"""
+        from mcp.client import MCPClient, register_mcp_tools
+        try:
+            mcp = MCPClient(["python", "mcp/echo_server.py"])
+            mcp.start()
+            register_mcp_tools(reg, mcp)
+        except Exception as e:  # noqa
+            print(f"[提示] MCP 未接入（{e}），仅用内置工具。")
+
     # --- TUI 模式 ---
     if args.tui:
         from agent.tui import run_tui
         reg = build_default_registry()
+        _wire_mcp(reg)
         backend = _make_backend()
         skills = load_skills()
         system_prompt = build_system_prompt(skills_catalog(skills))
@@ -98,6 +110,7 @@ def main(argv: list[str] | None = None) -> int:
     # 真正跑任务：优先用 DeepSeek API；没配 key 时回退到 FakeBackend（离线打通管道）
     from agent.loop import AgentLoop
     reg = build_default_registry()
+    _wire_mcp(reg)
     backend = _make_backend()
     skills = load_skills()
     system_prompt = build_system_prompt(skills_catalog(skills))
