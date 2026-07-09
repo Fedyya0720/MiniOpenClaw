@@ -45,11 +45,22 @@ class DeepSeekBackend:
             payload["tools"] = tools           # OpenAI tools 格式，base.Tool.schema() 已生成
             payload["tool_choice"] = "auto"
 
+        # --- DEBUG: log outgoing payload ---
+        import json as _json
+        _serialized = _json.dumps(payload, ensure_ascii=False, indent=2)
+        print(f"\n[DEBUG] --- outgoing payload ({len(_serialized)} chars) ---")
+        print(_serialized[:4000])
+        if len(_serialized) > 4000:
+            print(f"...[truncated, total {len(_serialized)} chars]")
+        print("[DEBUG] --- end payload ---\n")
+
         resp = self._client.post(
             f"{self.base_url}/v1/chat/completions",
             headers={"Authorization": f"Bearer {self.api_key}"},
             json=payload,
         )
+        if not resp.is_success:
+            print(f"[DEBUG] HTTP {resp.status_code}: {resp.text[:2000]}")
         resp.raise_for_status()
         msg = resp.json()["choices"][0]["message"]
         return self._normalize(msg)
@@ -158,12 +169,22 @@ class DeepSeekBackend:
         for m in messages:
             role = m.get("role")
             if role == "tool":
-                # OpenAI 要求 tool 消息带 tool_call_id；最小实现可用 name 兜底
+                # OpenAI 要求 tool 消息带 tool_call_id。
+                # 注意：dict.get() 在 key 存在但值为 None 时不会走默认值，
+                # 所以先取出来再显式处理 None。
+                tc_id = m.get("tool_call_id") or m.get("name") or "tool"
                 out.append({"role": "tool", "content": str(m.get("content", "")),
-                            "tool_call_id": m.get("tool_call_id", m.get("name", "tool"))})
+                            "tool_call_id": tc_id})
             elif role == "assistant" and m.get("tool_calls"):
+                # 有 tool_calls 时 content 必须为 null（OpenAI 规范）
                 out.append({"role": "assistant", "content": m.get("content") or None,
                             "tool_calls": self._to_openai_tool_calls(m["tool_calls"])})
+            elif role == "assistant":
+                # 纯文本回复：跳过空 content（部分 API 拒收空字符串）
+                content = m.get("content", "")
+                if not content:
+                    continue
+                out.append({"role": role, "content": content})
             else:
                 out.append({"role": role, "content": m.get("content", "")})
         return out
@@ -172,8 +193,11 @@ class DeepSeekBackend:
     def _to_openai_tool_calls(calls: list[dict]) -> list[dict]:
         out = []
         for i, c in enumerate(calls):
+            name = c.get("name")
+            if not name:  # skip malformed tool calls (missing name → API 400)
+                continue
             out.append({"id": c.get("id", f"call_{i}"), "type": "function",
-                        "function": {"name": c["name"],
+                        "function": {"name": name,
                                      "arguments": json.dumps(c.get("arguments", {}), ensure_ascii=False)}})
         return out
 
