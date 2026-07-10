@@ -186,7 +186,13 @@ class DeepSeekBackend:
                     continue
                 out.append({"role": role, "content": content})
             else:
-                out.append({"role": role, "content": m.get("content", "")})
+                # 支持纯文本或内容块列表（多模态：文本+图片）
+                content = m.get("content", "")
+                if isinstance(content, list):
+                    # 内容块列表 — 直接透传（OpenAI Vision API 格式兼容）
+                    out.append({"role": role, "content": content})
+                else:
+                    out.append({"role": role, "content": str(content)})
         return out
 
     @staticmethod

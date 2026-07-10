@@ -27,10 +27,19 @@ class AgentLoop:
         self.max_turns = max_turns          # 防死循环：硬上限
         self.token_budget = token_budget    # 触发 compaction 的 token 阈值
 
-    def run(self, user_task: str) -> str:
+    def run(self, user_task: str, images: list[str] | None = None) -> str:
+        # 构建 user 消息：纯文本 or 文本+图片内容块
+        if images:
+            from backend.image_util import image_block
+            content: Any = [{"type": "text", "text": user_task}]
+            for img_path in images:
+                content.append(image_block(img_path))
+        else:
+            content = user_task
+
         messages: list[dict[str, Any]] = [
             {"role": "system", "content": self.system_prompt},
-            {"role": "user", "content": user_task},
+            {"role": "user", "content": content},
         ]
         for turn in range(self.max_turns):
             # Day7: context management — compact if over budget

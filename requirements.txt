@@ -9,6 +9,9 @@ markdownify>=0.13    # web_fetch: HTML -> markdown
 # --- Day8 MCP（可选，最小客户端可不依赖官方 SDK）---
 # mcp>=1.0           # 官方 SDK，做对照时再装
 
+# --- Day9 图像输入通道（多模态）---
+Pillow>=10.0         # 图片缩放（backend/image_util.py），不装则跳过缩放
+
 # --- Day11 TUI（交互式 REPL + 流式显示）---
 rich>=13.0           # 终端美化：Panel / Live 流式渲染
 prompt_toolkit>=3.0  # REPL 输入：历史记录、多行编辑

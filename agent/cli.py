@@ -80,6 +80,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--selfcheck", action="store_true", help="只做骨架自检")
     p.add_argument("--tui", "-t", action="store_true",
                    help="启动交互式 TUI 模式（REPL + 流式显示）")
+    p.add_argument("--image", "-i", action="append", default=None,
+                   help="附加图片到用户消息（可多次指定），打通多模态输入通道")
     args = p.parse_args(argv)
 
     # --- MCP 工具接入 ---
@@ -115,7 +117,7 @@ def main(argv: list[str] | None = None) -> int:
     skills = load_skills()
     system_prompt = build_system_prompt(skills_catalog(skills))
     agent = AgentLoop(backend, reg, system_prompt)
-    print(agent.run(args.task))
+    print(agent.run(args.task, images=args.image))
     return 0
 
 
