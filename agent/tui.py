@@ -36,6 +36,7 @@ from prompt_toolkit.completion import Completer, Completion, PathCompleter
 
 from tools.base import ToolRegistry
 from agent.context import estimate_tokens, maybe_compact, truncate_observation
+from agent.permissions import permission_observation
 
 
 # ---------------------------------------------------------------------------
@@ -223,6 +224,9 @@ def _run_react_turn(
     console: Console,
     max_turns: int = 20,
     token_budget: int = 8000,
+    auto_approve: bool = False,
+    confirmer: Any = None,
+    workdir: Path | None = None,
 ) -> None:
     """跑一轮 ReAct 循环：流式显示助手响应 → 执行工具 → 注入观察 → 重复。
 
@@ -330,10 +334,16 @@ def _run_react_turn(
             if tool is None:
                 obs = f"错误：未知工具 {call['name']}"
             else:
-                try:
-                    obs = tool.run(**call.get("arguments", {}))
-                except Exception as e:
-                    obs = f"工具执行错误（{call['name']}）：{e}\n请检查参数并重试。"
+                arguments = call.get("arguments", {})
+                obs = permission_observation(
+                    call["name"], arguments, workdir or Path.cwd(),
+                    auto_approve=auto_approve, confirmer=confirmer,
+                )
+                if obs is None:
+                    try:
+                        obs = tool.run(**arguments)
+                    except Exception as e:
+                        obs = f"工具执行错误（{call['name']}）：{e}\n请检查参数并重试。"
 
             obs = truncate_observation(str(obs))
 
@@ -358,7 +368,8 @@ def _run_react_turn(
 # 主入口
 # ---------------------------------------------------------------------------
 
-def run_tui(backend: Any, registry: ToolRegistry, system_prompt: str) -> None:
+def run_tui(backend: Any, registry: ToolRegistry, system_prompt: str,
+            auto_approve: bool = False) -> None:
     """启动交互式 TUI REPL。
 
     Args:
@@ -376,6 +387,13 @@ def run_tui(backend: Any, registry: ToolRegistry, system_prompt: str) -> None:
         multiline=False,
         # Enter 直接提交；按 Alt+Enter 可换行输入多行
     )
+
+    def confirm_tool(name: str, args: dict[str, Any], reason: str) -> bool:
+        display.print(display.render_system(
+            f"权限确认：{name} {json.dumps(args, ensure_ascii=False)}\n{reason}"
+        ))
+        answer = session.prompt("允许本次执行？[y/N] ").strip().lower()
+        return answer in {"y", "yes"}
 
     # --- 欢迎面板 ---
     model_name = getattr(backend, "model", "unknown")
@@ -492,7 +510,12 @@ def run_tui(backend: Any, registry: ToolRegistry, system_prompt: str) -> None:
 
         # 运行 ReAct
         try:
-            _run_react_turn(backend, registry, messages, display, console)
+            _run_react_turn(
+                backend, registry, messages, display, console,
+                auto_approve=auto_approve,
+                confirmer=None if auto_approve else confirm_tool,
+                workdir=Path.cwd(),
+            )
         except KeyboardInterrupt:
             console.print(Panel("已中断，回到提示符", border_style="yellow"))
         except Exception as e:

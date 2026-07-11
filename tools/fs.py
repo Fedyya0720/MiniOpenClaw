@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from pathlib import Path as _Path
 from .base import Tool
-from .security import resolve_write_path
+from .security import resolve_write_path, wrap_external
 
 
 def _read(path: str, max_bytes: int = 100_000) -> str:
@@ -53,7 +53,7 @@ def _read(path: str, max_bytes: int = 100_000) -> str:
     if is_truncated:
         result += f"\n...[truncated to {max_bytes} bytes, total {original_size} bytes]"
 
-    return result
+    return wrap_external(result, path)
 
 
 def _write(path: str, content: str) -> str:
@@ -67,7 +67,7 @@ def _write(path: str, content: str) -> str:
     (.git, .env, .ssh, .gnupg) are also blocked.
     """
     resolved = resolve_write_path(path)
-    if isinstance(resolved, str) and resolved.startswith("⚠️"):
+    if resolved.startswith("⚠️") or resolved.startswith("错误："):
         return resolved  # sandbox blocked the write
 
     path = resolved

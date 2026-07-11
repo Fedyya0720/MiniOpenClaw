@@ -1,6 +1,7 @@
 """受控 shell 执行（Day5：bash；Day10：加沙箱与权限）。"""
 from __future__ import annotations
 import os
+import shutil
 import subprocess
 from .base import Tool
 from .security import check_bash_sandbox
@@ -21,14 +22,28 @@ def _bash(command: str, timeout: int = 30) -> str:
         return danger
 
     try:
-        result = subprocess.run(
-            command,
-            shell=True,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            cwd=os.getcwd(),
-        )
+        workdir = os.path.realpath(os.getcwd())
+        bwrap = shutil.which("bwrap")
+        if bwrap:
+            cmd = [
+                bwrap,
+                "--ro-bind", "/", "/",
+                "--bind", workdir, workdir,
+                "--chdir", workdir,
+                "--unshare-net",
+                "--dev", "/dev",
+                "--proc", "/proc",
+                "bash", "-c", command,
+            ]
+            result = subprocess.run(
+                cmd, shell=False, capture_output=True, text=True,
+                timeout=timeout, cwd=workdir,
+            )
+        else:
+            result = subprocess.run(
+                command, shell=True, capture_output=True, text=True,
+                timeout=timeout, cwd=workdir,
+            )
     except subprocess.TimeoutExpired:
         return f"错误：命令超时（{timeout}s）"
 

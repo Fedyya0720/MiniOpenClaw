@@ -82,6 +82,8 @@ def main(argv: list[str] | None = None) -> int:
                    help="启动交互式 TUI 模式（REPL + 流式显示）")
     p.add_argument("--image", "-i", action="append", default=None,
                    help="附加图片到用户消息（可多次指定），打通多模态输入通道")
+    p.add_argument("--auto-approve", action="store_true",
+                   help="自动批准需确认的工具调用（权限层 deny 仍会拦截）")
     args = p.parse_args(argv)
 
     # --- MCP 工具接入 ---
@@ -103,7 +105,7 @@ def main(argv: list[str] | None = None) -> int:
         backend = _make_backend()
         skills = load_skills()
         system_prompt = build_system_prompt(skills_catalog(skills))
-        run_tui(backend, reg, system_prompt)
+        run_tui(backend, reg, system_prompt, auto_approve=args.auto_approve)
         return 0
 
     if args.selfcheck or not args.task:
@@ -116,7 +118,8 @@ def main(argv: list[str] | None = None) -> int:
     backend = _make_backend()
     skills = load_skills()
     system_prompt = build_system_prompt(skills_catalog(skills))
-    agent = AgentLoop(backend, reg, system_prompt)
+    agent = AgentLoop(backend, reg, system_prompt,
+                      auto_approve=args.auto_approve, workdir=Path.cwd())
     print(agent.run(args.task, images=args.image))
     return 0
 

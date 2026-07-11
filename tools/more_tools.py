@@ -8,11 +8,16 @@ import subprocess
 from pathlib import Path
 import json
 from .base import Tool
+from .security import resolve_write_path, validate_outbound_url, wrap_external
 
 
 # --- edit：search-replace（最稳策略）---
 def _edit(path: str, old: str = "", new: str = "") -> str:
     """Replace `old` text with `new` in a file. Requires unique match."""
+    resolved = resolve_write_path(path)
+    if resolved.startswith("⚠️") or resolved.startswith("错误："):
+        return resolved
+    path = resolved
     try:
         content = Path(path).read_text(encoding="utf-8")
     except FileNotFoundError:
@@ -84,18 +89,14 @@ def _glob(pattern: str) -> str:
 
 
 # --- web_fetch：URL -> markdown，控 token 预算 ---
-# Day10: SSRF protection delegates to tools/security.py
-from .security import is_internal_url
-
-
 def _web_fetch(url: str, max_tokens: int = 2000) -> str:
     """Fetch a URL and convert to markdown, truncated to token budget.
 
     Day10: SSRF protection blocks requests to internal/private IP addresses.
     """
-    # Day10: SSRF check (delegates to tools/security.py)
-    if is_internal_url(url):
-        return f"⚠️ 安全拦截：禁止访问内部地址 '{url}'（SSRF 防护）。"
+    refusal = validate_outbound_url(url)
+    if refusal:
+        return f"⚠️ {refusal}"
 
     try:
         import httpx
@@ -103,8 +104,23 @@ def _web_fetch(url: str, max_tokens: int = 2000) -> str:
         return "错误：需要 httpx 库。运行：pip install httpx"
 
     try:
-        response = httpx.get(url, timeout=15.0, follow_redirects=True)
-        response.raise_for_status()
+        current_url = url
+        with httpx.Client(timeout=15.0, follow_redirects=False) as client:
+            for _ in range(6):
+                refusal = validate_outbound_url(current_url)
+                if refusal:
+                    return f"⚠️ {refusal}"
+                response = client.get(current_url)
+                if response.is_redirect:
+                    location = response.headers.get("location")
+                    if not location:
+                        return "错误：重定向响应缺少 Location。"
+                    current_url = str(response.url.join(location))
+                    continue
+                response.raise_for_status()
+                break
+            else:
+                return "错误：重定向次数超过 5 次。"
     except httpx.TimeoutException:
         return f"错误：请求超时 — {url}"
     except httpx.HTTPStatusError as e:
@@ -124,7 +140,7 @@ def _web_fetch(url: str, max_tokens: int = 2000) -> str:
     if len(text) > max_chars:
         text = text[:max_chars] + f"\n...[已截断，共 {len(text)} 字符]"
 
-    return text
+    return wrap_external(text, str(response.url))
 
 
 # --- task_list（TodoWrite）：自维护待办，提升长任务成功率 ---
