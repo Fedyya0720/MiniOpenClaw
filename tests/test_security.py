@@ -67,11 +67,25 @@ class ToolSecurityTests(unittest.TestCase):
             self.assertIn("安全拦截", resolve_write_path(str(link / "x.txt")))
 
     def test_web_allowlist_and_environment_extension(self):
-        self.assertIsNone(validate_outbound_url("https://example.com/page"))
-        self.assertIn("白名单", validate_outbound_url("https://evil.com/upload") or "")
-        self.assertIn("内部地址", validate_outbound_url("http://127.0.0.1/x") or "")
-        with patch.dict(os.environ, {"MINIOPENCLAW_WEB_ALLOW_HOSTS": "docs.example.org"}):
+        with patch.dict(os.environ, {"MINIOPENCLAW_WEB_POLICY": "public"}):
+            self.assertIsNone(validate_outbound_url("https://example.com/page"))
+            self.assertIsNone(validate_outbound_url("https://docs.python.org/guide"))
+            self.assertIn("禁止列表", validate_outbound_url("https://evil.com/upload") or "")
+            self.assertIn("内部地址", validate_outbound_url("http://127.0.0.1/x") or "")
+        with patch.dict(os.environ, {
+            "MINIOPENCLAW_WEB_POLICY": "allowlist",
+            "MINIOPENCLAW_WEB_ALLOW_HOSTS": "docs.example.org",
+        }):
             self.assertIsNone(validate_outbound_url("https://docs.example.org/guide"))
+            self.assertIn("白名单", validate_outbound_url("https://docs.python.org/guide") or "")
+
+    @patch("tools.security.socket.getaddrinfo")
+    def test_web_fetch_blocks_hostname_resolving_to_private_ip(self, getaddrinfo):
+        getaddrinfo.return_value = [
+            (2, 1, 6, "", ("127.0.0.1", 443)),
+        ]
+        result = validate_outbound_url("https://public.example/path", resolve_dns=True)
+        self.assertIn("解析到了内部地址", result or "")
 
     @patch("httpx.Client")
     def test_web_fetch_revalidates_redirect_target(self, client_class):
@@ -85,7 +99,7 @@ class ToolSecurityTests(unittest.TestCase):
 
         result = _web_fetch("https://example.com/start")
 
-        self.assertIn("白名单", result)
+        self.assertIn("禁止列表", result)
         self.assertEqual(client.get.call_count, 1)
 
     def test_dangerous_bash_blocked_and_normal_command_runs(self):

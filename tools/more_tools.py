@@ -94,7 +94,7 @@ def _web_fetch(url: str, max_tokens: int = 2000) -> str:
 
     Day10: SSRF protection blocks requests to internal/private IP addresses.
     """
-    refusal = validate_outbound_url(url)
+    refusal = validate_outbound_url(url, resolve_dns=True)
     if refusal:
         return f"⚠️ {refusal}"
 
@@ -107,7 +107,7 @@ def _web_fetch(url: str, max_tokens: int = 2000) -> str:
         current_url = url
         with httpx.Client(timeout=15.0, follow_redirects=False) as client:
             for _ in range(6):
-                refusal = validate_outbound_url(current_url)
+                refusal = validate_outbound_url(current_url, resolve_dns=True)
                 if refusal:
                     return f"⚠️ {refusal}"
                 response = client.get(current_url)

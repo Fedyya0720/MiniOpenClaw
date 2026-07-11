@@ -31,6 +31,7 @@ import ipaddress
 import html
 import os
 import re as _re
+import socket
 from pathlib import Path as _Path
 from urllib.parse import urlparse
 
@@ -175,10 +176,11 @@ def is_internal_url(url: str) -> bool:
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# 外部内容隔离与出站白名单
+# 外部内容隔离与出站策略
 # ═══════════════════════════════════════════════════════════════════════
 
 DEFAULT_ALLOW_HOSTS = {"example.com", "api.deepseek.com"}
+BLOCKED_WEB_HOSTS = {"evil.com"}
 
 
 def allowed_web_hosts() -> set[str]:
@@ -189,7 +191,31 @@ def allowed_web_hosts() -> set[str]:
     }
 
 
-def validate_outbound_url(url: str) -> str | None:
+def blocked_web_hosts() -> set[str]:
+    """Return built-in blocked hosts plus comma-separated additions."""
+    extra = os.getenv("MINIOPENCLAW_WEB_BLOCK_HOSTS", "")
+    return BLOCKED_WEB_HOSTS | {
+        host.strip().lower().rstrip(".") for host in extra.split(",") if host.strip()
+    }
+
+
+def _host_resolves_internal(host: str, port: int) -> bool:
+    """Best-effort DNS check for hostnames resolving to private addresses."""
+    try:
+        addresses = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+    except socket.gaierror:
+        return False  # Let the HTTP client return the normal DNS error.
+    for address in addresses:
+        try:
+            ip = ipaddress.ip_address(address[4][0])
+        except ValueError:
+            continue
+        if any(ip in network for network in _SSRF_NETWORKS):
+            return True
+    return False
+
+
+def validate_outbound_url(url: str, *, resolve_dns: bool = False) -> str | None:
     """Return a refusal message when a URL is unsafe, otherwise None."""
     try:
         parsed = urlparse(url)
@@ -200,7 +226,15 @@ def validate_outbound_url(url: str) -> str | None:
         return f"安全拦截：仅允许有效的 HTTP/HTTPS URL：{url}"
     if is_internal_url(url):
         return f"安全拦截：禁止访问内部地址 '{url}'（SSRF 防护）。"
-    if host not in allowed_web_hosts():
+    blocked = blocked_web_hosts()
+    if host in blocked or any(host.endswith(f".{item}") for item in blocked):
+        return f"安全拦截：域名 '{host}' 位于 web_fetch 明确禁止列表中。"
+    if host == "localhost" or host.endswith((".localhost", ".local", ".internal")):
+        return f"安全拦截：禁止访问本地或内部域名 '{host}'。"
+    if resolve_dns and _host_resolves_internal(host, parsed.port or (443 if parsed.scheme == "https" else 80)):
+        return f"安全拦截：域名 '{host}' 解析到了内部地址（SSRF 防护）。"
+    policy = os.getenv("MINIOPENCLAW_WEB_POLICY", "public").strip().lower()
+    if policy == "allowlist" and host not in allowed_web_hosts():
         return f"安全拦截：域名 '{host}' 不在 web_fetch 出站白名单中。"
     return None
 
