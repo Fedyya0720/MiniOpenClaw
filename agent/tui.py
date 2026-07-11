@@ -32,9 +32,49 @@ from rich.text import Text
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import FileHistory
+from prompt_toolkit.completion import Completer, Completion, PathCompleter
 
 from tools.base import ToolRegistry
 from agent.context import estimate_tokens, maybe_compact, truncate_observation
+
+
+# ---------------------------------------------------------------------------
+# 路径辅助
+# ---------------------------------------------------------------------------
+
+def _unescape_path(raw: str) -> str:
+    """去掉 shell 风格反斜杠转义：\\  → （空格）等。"""
+    return re.sub(r'\\(.)', r'\1', raw)
+
+
+# ---------------------------------------------------------------------------
+# /image 路径补全
+# ---------------------------------------------------------------------------
+
+class _ImagePathCompleter(Completer):
+    """条件补全：仅当输入以 /image 开头时对后续路径做文件补全。"""
+
+    def __init__(self) -> None:
+        self._path_completer = PathCompleter(expanduser=True)
+
+    def get_completions(self, document, complete_event):
+        text = document.text_before_cursor
+        # 只在 /image 命令后激活
+        if not text.lstrip().startswith("/image"):
+            return
+        # 拆出 /image 和后续路径部分
+        m = re.match(r'\s*/image\s+(.*)', text)
+        if m is None:
+            return
+        path_prefix = m.group(1)
+        # 去掉 shell 转义的反斜杠再补全
+        clean_prefix = _unescape_path(path_prefix)
+        # 构造一个虚拟 document，只包含路径部分
+        from prompt_toolkit.document import Document
+        path_doc = Document(clean_prefix, len(clean_prefix))
+        for comp in self._path_completer.get_completions(path_doc, complete_event):
+            # 补全结果保持原样（prompt_toolkit 会替换光标前的文字）
+            yield comp
 
 
 # ---------------------------------------------------------------------------
@@ -343,7 +383,7 @@ def run_tui(backend: Any, registry: ToolRegistry, system_prompt: str) -> None:
         "[bold blue]MiniOpenClaw[/bold blue]  [dim]交互模式[/dim]\n"
         f"  模型: [cyan]{model_name}[/cyan]   |   工具: [cyan]{len(registry)}[/cyan]\n"
         "  Enter 发送  |  Ctrl+D 或 /quit 退出  |  /clear 清空历史\n"
-        "  Ctrl+C 中断正在生成的回复",
+        "  /image <path> 附加图片  |  Ctrl+C 中断正在生成的回复",
         title="Welcome",
         border_style="blue",
         width=min(_term_width(), 120),
@@ -354,18 +394,73 @@ def run_tui(backend: Any, registry: ToolRegistry, system_prompt: str) -> None:
         {"role": "system", "content": system_prompt},
     ]
 
+    # --- 待附加的图片（/image 命令设置，下次用户消息时消费并清空）---
+    pending_images: list[dict[str, Any]] = []
+
+    # --- 路径补全器 ---
+    path_completer = _ImagePathCompleter()
+
     # --- 主循环 ---
     while True:
         # 用户输入
         try:
             user_input = session.prompt(
                 [("class:prompt", "\n> ")],
+                completer=path_completer,
             ).strip()
         except (EOFError, KeyboardInterrupt):
             console.print("\n[dim]Goodbye.[/dim]")
             return
 
         if not user_input:
+            continue
+
+        # ---- /image <path> — 附加图片到下一轮对话 ----
+        if user_input.startswith("/image"):
+            parts = user_input.split(None, 1)
+            if len(parts) < 2:
+                console.print(Panel(
+                    "用法：/image <图片路径>\n示例：/image screenshot.png",
+                    border_style="yellow",
+                    width=min(_term_width(), 80),
+                ))
+                continue
+            # 去掉 shell 风格反斜杠转义（\  → 空格等）
+            img_path = Path(_unescape_path(parts[1])).expanduser()
+            if not img_path.is_file():
+                console.print(Panel(
+                    f"图片文件不存在：{img_path}",
+                    border_style="red",
+                    width=min(_term_width(), 80),
+                ))
+                continue
+            try:
+                from backend.image_util import image_block
+                block = image_block(str(img_path))
+                pending_images.append(block)
+                console.print(Panel(
+                    f"已附加图片：[green]{img_path.name}[/green]"
+                    f"（共 {len(pending_images)} 张，下次发送消息时生效）",
+                    border_style="green",
+                    width=min(_term_width(), 80),
+                ))
+            except Exception as e:
+                console.print(Panel(
+                    f"图片加载失败：{e}",
+                    border_style="red",
+                    width=min(_term_width(), 80),
+                ))
+            continue
+
+        # ---- /clear-images — 清空待附加图片 ----
+        if user_input.lower() in ("/clear-images",):
+            count = len(pending_images)
+            pending_images.clear()
+            console.print(Panel(
+                f"已清空 {count} 张待附加图片",
+                border_style="bright_black",
+                width=min(_term_width(), 80),
+            ))
             continue
 
         # 内建命令
@@ -376,12 +471,24 @@ def run_tui(backend: Any, registry: ToolRegistry, system_prompt: str) -> None:
         if user_input.lower() in ("/clear",):
             # 清空对话历史，保留 system prompt
             messages[:] = [{"role": "system", "content": system_prompt}]
+            pending_images.clear()
             console.print(Panel("对话历史已清空", border_style="bright_black"))
             continue
 
-        # 显示用户消息
-        display.print(display.render_user(user_input))
-        messages.append({"role": "user", "content": user_input})
+        # ---- 构建用户消息 ----
+        if pending_images:
+            # 多模态：文本 + 图片内容块
+            content: Any = [{"type": "text", "text": user_input}] + pending_images
+            # 显示时标注附加图片
+            display.print(display.render_user(
+                f"{user_input}\n[dim](附加 {len(pending_images)} 张图片)[/dim]"
+            ))
+            pending_images.clear()
+        else:
+            content = user_input
+            display.print(display.render_user(user_input))
+
+        messages.append({"role": "user", "content": content})
 
         # 运行 ReAct
         try:
