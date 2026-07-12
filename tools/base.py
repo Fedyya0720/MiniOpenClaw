@@ -75,4 +75,8 @@ def build_default_registry() -> ToolRegistry:
     for t in (web_fetch_tool, task_list_tool):
         reg.register(t)
 
+    # Day7 afternoon: persistent project memory
+    from .memory import remember_tool
+    reg.register(remember_tool)
+
     return reg

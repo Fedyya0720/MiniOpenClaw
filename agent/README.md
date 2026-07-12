@@ -9,7 +9,8 @@ agent/
 ├── loop.py      # ReAct main loop (think → act → observe → repeat)
 ├── cli.py        # CLI entry point (python -m agent.cli)
 ├── prompts.py    # System prompt with tool catalog + skills template
-└── context.py    # Token estimation, compaction, observation truncation
+├── context.py    # Token estimation, compaction, observation truncation
+└── memory.py     # Cross-session persistence, recall, and structured memory
 ```
 
 ## Key Design Decisions
@@ -46,6 +47,15 @@ agent/
 **Decision:** Auto-load `.env` before imports, fall back to FakeBackend if no API key.
 
 **Why:** `.env` loading avoids the "remember to export variables" friction for students. The FakeBackend fallback means the skeleton is testable without any API key — critical for Day 1.
+
+### 5. Persistent Memory (`memory.py`)
+
+**Decision:** Keep project memory in human-readable `MEMORY.md` and expose writes through
+the normal tool registry. The CLI recalls this file once at session startup and appends it
+to the system prompt. `KVMemory` separately supports key-based replacement and deletion.
+
+**Boundary:** Context compaction handles one running task; memory persists stable facts
+across processes. Memory is not intended for secrets, transient chat, or codebase RAG.
 
 ## Verification
 
