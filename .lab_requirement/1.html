@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<!-- saved from url=(0092)http://10.130.130.9:10000/day01-%E5%AF%BC%E8%AE%BA%E4%B8%8E%E7%8E%AF%E5%A2%83/lab-guide.html -->
+<html lang="zh-CN" data-darkreader-mode="dynamic" data-darkreader-scheme="dark" data-darkreader-proxy-injected="true"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><style class="darkreader darkreader--fallback" media="screen"></style><style class="darkreader darkreader--user-agent" media="screen">@layer {
+html {
+    background-color: var(--darkreader-background-ffffff, #181a1b) !important;
+}
+html {
+    color-scheme: dark !important;
+}
+iframe {
+    color-scheme: dark !important;
+}
+html, body {
+    background-color: var(--darkreader-background-ffffff, #181a1b);
+}
+html, body {
+    border-color: var(--darkreader-border-4c4c4c, #736b5e);
+    color: var(--darkreader-text-000000, #e8e6e3);
+}
+a {
+    color: var(--darkreader-text-0040ff, #3391ff);
+}
+table {
+    border-color: var(--darkreader-border-808080, #545b5e);
+}
+mark {
+    color: var(--darkreader-text-000000, #e8e6e3);
+}
+::placeholder {
+    color: var(--darkreader-text-a9a9a9, #b2aba1);
+}
+input:-webkit-autofill,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+    background-color: var(--darkreader-background-faffbd, #404400) !important;
+    color: var(--darkreader-text-000000, #e8e6e3) !important;
+}
+::selection {
+    background-color: var(--darkreader-background-0060d4, #004daa) !important;
+    color: var(--darkreader-text-ffffff, #e8e6e3) !important;
+}
+::-moz-selection {
+    background-color: var(--darkreader-background-0060d4, #004daa) !important;
+    color: var(--darkreader-text-ffffff, #e8e6e3) !important;
+}
+}</style><style class="darkreader darkreader--text" media="screen"></style><style class="darkreader darkreader--invert" media="screen">.jfk-bubble.gtx-bubble, .captcheck_answer_label > input + img, span#closed_text > img[src^="https://www.gstatic.com/images/branding/googlelogo"], span[data-href^="https://www.hcaptcha.com/"] > #icon, img.Wirisformula, a[data-testid="headerMediumLogo"]>svg, .d2l-navigation-link-image-container, .d2l-iframe-loading-container, div.mc-ip-hide[style*="background: rgb(255, 255, 255) !important"], [style*="color: rgb(0, 0, 1) !important;"] {
+    filter: invert(100%) hue-rotate(180deg) contrast(90%) !important;
+}</style><style class="darkreader darkreader--inline" media="screen">[data-darkreader-inline-bgcolor] {
+  background-color: var(--darkreader-inline-bgcolor) !important;
+}
+[data-darkreader-inline-bgimage] {
+  background-image: var(--darkreader-inline-bgimage) !important;
+}
+[data-darkreader-inline-border] {
+  border-color: var(--darkreader-inline-border) !important;
+}
+[data-darkreader-inline-border-bottom] {
+  border-bottom-color: var(--darkreader-inline-border-bottom) !important;
+}
+[data-darkreader-inline-border-left] {
+  border-left-color: var(--darkreader-inline-border-left) !important;
+}
+[data-darkreader-inline-border-right] {
+  border-right-color: var(--darkreader-inline-border-right) !important;
+}
+[data-darkreader-inline-border-top] {
+  border-top-color: var(--darkreader-inline-border-top) !important;
+}
+[data-darkreader-inline-boxshadow] {
+  box-shadow: var(--darkreader-inline-boxshadow) !important;
+}
+[data-darkreader-inline-color] {
+  color: var(--darkreader-inline-color) !important;
+}
+[data-darkreader-inline-fill] {
+  fill: var(--darkreader-inline-fill) !important;
+}
+[data-darkreader-inline-stroke] {
+  stroke: var(--darkreader-inline-stroke) !important;
+}
+[data-darkreader-inline-outline] {
+  outline-color: var(--darkreader-inline-outline) !important;
+}
+[data-darkreader-inline-stopcolor] {
+  stop-color: var(--darkreader-inline-stopcolor) !important;
+}
+[data-darkreader-inline-bg] {
+  background: var(--darkreader-inline-bg) !important;
+}
+[data-darkreader-inline-border-short] {
+  border: var(--darkreader-inline-border-short) !important;
+}
+[data-darkreader-inline-border-bottom-short] {
+  border-bottom: var(--darkreader-inline-border-bottom-short) !important;
+}
+[data-darkreader-inline-border-left-short] {
+  border-left: var(--darkreader-inline-border-left-short) !important;
+}
+[data-darkreader-inline-border-right-short] {
+  border-right: var(--darkreader-inline-border-right-short) !important;
+}
+[data-darkreader-inline-border-top-short] {
+  border-top: var(--darkreader-inline-border-top-short) !important;
+}
+[data-darkreader-inline-invert] {
+    filter: invert(100%) hue-rotate(180deg);
+}</style><style class="darkreader darkreader--variables" media="screen">:root {
+   --darkreader-neutral-background: var(--darkreader-background-ffffff, #181a1b);
+   --darkreader-neutral-text: var(--darkreader-text-000000, #e8e6e3);
+   --darkreader-selection-background: var(--darkreader-background-0060d4, #004daa);
+   --darkreader-selection-text: var(--darkreader-text-ffffff, #e8e6e3);
+}</style><style class="darkreader darkreader--root-vars" media="screen"></style>
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 1 下午 · 环境搭建与系统观察</title>
+<style>
+  :root{--cardinal:#8C1515;--navy:#16294A;--ink:#1f2733;--gray:#5A6372;
+    --line:#e4e8f0;--light:#F5F7FB;--code:#1E2633;--codefg:#E6EDF3;}
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",
+    "Segoe UI",sans-serif;color:var(--ink);line-height:1.75;background:#fbfcfe}
+  a{color:var(--cardinal);text-decoration:none}a:hover{text-decoration:underline}
+  .topbar{position:sticky;top:0;z-index:20;background:var(--cardinal);color:#fff;
+    display:flex;align-items:center;gap:14px;padding:0 22px;height:48px;
+    box-shadow:0 1px 8px rgba(0,0,0,.15)}
+  .topbar .home{color:#fff;font-weight:700;font-size:14px}
+  .topbar .home:hover{text-decoration:none;opacity:.85}
+  .topbar .sep{color:#e2b9b9}
+  .topbar .cur{color:#f3dede;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  article{max-width:820px;margin:0 auto;padding:26px 24px 90px}
+  article h1{font-size:31px;color:var(--navy);font-weight:800;line-height:1.3;
+    border-bottom:3px solid var(--cardinal);padding-bottom:14px;margin:14px 0 26px}
+  article h2{font-size:24px;color:var(--navy);font-weight:800;margin:38px 0 12px;
+    padding-left:13px;border-left:5px solid var(--cardinal)}
+  article h3{font-size:19px;color:var(--navy);font-weight:700;margin:28px 0 8px}
+  article h4{font-size:16.5px;color:var(--ink);font-weight:700;margin:20px 0 6px}
+  article p{font-size:16px;margin:12px 0}
+  article ul,article ol{padding-left:26px;margin:12px 0}
+  article li{margin:5px 0;font-size:16px}
+  article strong{color:var(--ink)}
+  article code{background:#eef1f6;color:#9a2222;border-radius:4px;padding:1px 6px;
+    font-family:Menlo,Consolas,monospace;font-size:.9em}
+  article pre{background:var(--code);border-radius:9px;padding:16px 18px;overflow:auto;
+    margin:16px 0;line-height:1.5}
+  article pre code{background:none;color:var(--codefg);padding:0;font-size:13.5px;white-space:pre}
+  article blockquote{margin:16px 0;padding:10px 18px;background:var(--light);
+    border-left:4px solid var(--cardinal);border-radius:0 8px 8px 0;color:#33404f}
+  article blockquote p{margin:6px 0;font-size:15.5px}
+  article table{border-collapse:collapse;width:100%;margin:18px 0;font-size:14.5px;display:block;overflow-x:auto}
+  article thead th{background:var(--navy);color:#fff;text-align:left;padding:10px 13px;font-weight:700}
+  article tbody td{padding:9px 13px;border-bottom:1px solid var(--line);vertical-align:top}
+  article tbody tr:nth-child(even){background:var(--light)}
+  article hr{border:0;border-top:1px solid var(--line);margin:30px 0}
+  article .math-block{text-align:center;margin:20px 0;overflow-x:auto;overflow-y:hidden}
+  article .math-inline{white-space:nowrap}
+  mjx-container{max-width:100%}
+  mjx-container[display="true"]{margin:0 !important}
+  .foot{max-width:820px;margin:0 auto;padding:0 24px 50px;color:var(--gray);font-size:13.5px}
+</style><style class="darkreader darkreader--sync" media="screen"></style>
+<script>
+  window.MathJax={
+    tex:{inlineMath:[['$','$']],displayMath:[['$$','$$']]},
+    svg:{fontCache:'global'},
+    options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}
+  };
+</script>
+<script src="./01_files/tex-svg.js.download" async=""></script>
+<meta name="darkreader" content="487ca5059001c8868425f0233c3bd3b2"><style class="darkreader darkreader--override" media="screen">.vimvixen-hint {
+    background-color: var(--darkreader-background-ffd76e, #684b00) !important;
+    border-color: var(--darkreader-background-c59d00, #9e7e00) !important;
+    color: var(--darkreader-text-302505, #d7d4cf) !important;
+}
+#vimvixen-console-frame {
+    color-scheme: light !important;
+}
+::placeholder {
+    opacity: 0.5 !important;
+}
+#edge-translate-panel-body,
+.MuiTypography-body1,
+.nfe-quote-text {
+    color: var(--darkreader-neutral-text) !important;
+}
+gr-main-header {
+    background-color: var(--darkreader-background-add8e6, #1b4958) !important;
+}
+.tou-z65h9k,
+.tou-mignzq,
+.tou-1b6i2ox,
+.tou-lnqlqk {
+    background-color: var(--darkreader-neutral-background) !important;
+}
+.tou-75mvi {
+    background-color: var(--darkreader-background-cfecf5, #0f3a47) !important;
+}
+.tou-ta9e87,
+.tou-1w3fhi0,
+.tou-1b8t2us,
+.tou-py7lfi,
+.tou-1lpmd9d,
+.tou-1frrtv8,
+.tou-17ezmgn {
+    background-color: var(--darkreader-background-f5f5f5, #1e2021) !important;
+}
+.tou-uknfeu {
+    background-color: var(--darkreader-background-faedda, #432c09) !important;
+}
+.tou-6i3zyv {
+    background-color: var(--darkreader-background-85c3d8, #245d70) !important;
+}
+div.mermaid-viewer-control-panel .btn {
+    background-color: var(--darkreader-neutral-background);
+    fill: var(--darkreader-neutral-text);
+}
+svg g rect.er {
+    fill: var(--darkreader-neutral-background) !important;
+}
+svg g rect.er.entityBox {
+    fill: var(--darkreader-neutral-background) !important;
+}
+svg g rect.er.attributeBoxOdd {
+    fill: var(--darkreader-neutral-background) !important;
+}
+svg g rect.er.attributeBoxEven {
+    fill: var(--darkreader-selection-background);
+    fill-opacity: 0.8 !important;
+}
+svg rect.er.relationshipLabelBox {
+    fill: var(--darkreader-neutral-background) !important;
+}
+svg g g.nodes rect,
+svg g g.nodes polygon {
+    fill: var(--darkreader-neutral-background) !important;
+}
+svg g rect.task {
+    fill: var(--darkreader-selection-background) !important;
+}
+svg line.messageLine0,
+svg line.messageLine1 {
+    stroke: var(--darkreader-neutral-text) !important;
+}
+div.mermaid .actor {
+    fill: var(--darkreader-neutral-background) !important;
+}
+mitid-authenticators-code-app > .code-app-container {
+    background-color: white !important;
+    padding-top: 1rem;
+}
+iframe#unpaywall[src$="unpaywall.html"] {
+    color-scheme: light !important;
+}
+select {
+    --darkreader-bg--form-control-background-color: rgba(22, 22, 22, 0) !important;
+}
+body#tumblr {
+    --darkreader-bg--secondary-accent: 31, 32, 34 !important;
+    --darkreader-bg--white: 23, 23, 23 !important;
+    --darkreader-text--black: 228, 224, 218 !important;
+}
+:host {
+    --d2l-border-color: var(--darkreader-bg--d2l-color-gypsum) !important;
+    --d2l-button-icon-background-color-hover: var(--darkreader-bg--d2l-color-gypsum) !important;
+    --d2l-color-ferrite: var(--darkreader-neutral-text) !important;
+    --d2l-color-sylvite: var(--darkreader-bg--d2l-color-sylvite) !important;
+    --d2l-dropdown-background-color: var(--darkreader-neutral-background) !important;
+    --d2l-dropdown-border-color: var(--darkreader-border--d2l-color-mica) !important;
+    --d2l-input-backgroud-color: var(--darkreader-neutral-background) !important;
+    --d2l-menu-border-color: var(--darkreader-bg--d2l-color-gypsum) !important;
+    --d2l-tooltip-background-color: var(--darkreader-neutral-background) !important;
+    --d2l-tooltip-border-color: var(--darkreader-bg--d2l-color-gypsum) !important;
+}
+:host([_floating]) .d2l-floating-buttons-container {
+    background-color: var(--darkreader-neutral-background) !important;
+    border-top-color: var(--darkreader-border--d2l-color-mica) !important;
+    opacity: 0.88 !important;
+}
+d2l-card {
+    background: var(--darkreader-neutral-background) !important;
+    border-color: var(--darkreader-border--d2l-color-gypsum) !important;
+}
+d2l-dropdown-content > div,
+d2l-menu-item {
+    background-color: var(--darkreader-neutral-background) !important;
+    border-radius: 10px !important;
+}
+d2l-empty-state-simple {
+    border-color: var(--darkreader-bg--d2l-color-gypsum) !important;
+}
+.d2l-button-filter > ul > li > a.vui-button {
+    border-color: var(--darkreader-border--d2l-color-mica) !important;
+}
+.d2l-label-text:has(.d2l-button-subtle-content):hover,
+.d2l-label-text:has(.d2l-button-subtle-content):focus,
+.d2l-label-text:has(.d2l-button-subtle-content):active {
+    background-color: var(--darkreader-bg--d2l-color-gypsum) !important;
+}
+.d2l-navigation-centerer {
+    color: inherit !important;
+}
+.d2l-tabs-layout {
+    border-color: var(--darkreader-border--d2l-color-gypsum) !important;
+}
+.d2l-input,
+.d2l-calendar-date,
+.d2l-htmleditor-container {
+    background-color: var(--darkreader-neutral-background) !important;
+}
+.d2l-collapsible-panel {
+    border: 1px solid var(--darkreader-border--d2l-color-mica) !important;
+    border-radius: 0.4rem !important;
+}
+.d2l-collapsible-panel-divider {
+    border-bottom: 1px solid var(--darkreader-border--d2l-color-mica) !important;
+}
+.d2l-w2d-flex {
+    border-bottom: 2px solid var(--darkreader-border--d2l-color-mica) !important;
+}
+.d2l-collapsible-panel scrolled,
+.d2l-collapsible-panel-header,
+.d2l-w2d-collection-fixed {
+    background-color: var(--darkreader-neutral-background) !important;
+}
+.d2l-loading-spinner-bg {
+    fill: var(--darkreader-bg--d2l-color-gypsum) !important;
+}
+.d2l-loading-spinner-bg-stroke {
+    stroke: var(--darkreader-border--d2l-color-mica) !important;
+}
+.d2l-loading-spinner-wrapper svg path,
+.d2l-loading-spinner-wrapper svg circle {
+    fill: var(--darkreader-neutral-background) !important;
+}
+.d2l-twopanelselector-side.d2l-twopanelselector-side-sep {
+    background: var(--darkreader-bg--d2l-color-mica) !important;
+}
+.d2l-le-TreeAccordionItem-anchor::before {
+    background: var(--darkreader-bg--d2l-color-corundum) !important;
+}
+table[class|="moz-header"] {
+    background: none;
+}
+*[style*="color: rgba(0,0,0,"],
+*[style*="color: rgba(0, 0, 0,"],
+*[style*="color:#000"],
+*[style*="color:black"],
+*[style*="color:#282828"],
+*[style*="color:#444"] {
+    color: var(--darkreader-neutral-text) !important;
+}
+*[style*="background:#fff"],
+*[style*="background-color:#fff"] {
+    background: var(--darkreader-neutral-background) !important;
+}
+*[bgcolor="#F5F5F5"],
+*[style*="background-color: #F5F5F5"] {
+    background: var(--darkreader-background-f5f5f5, #1e2021) !important;
+}
+body[style*="background: rgb(255, 255, 255) !important"] *:not(a),
+.body[style*="background-color: rgb(254, 254, 254) !important"] *:not(a) {
+    background-color: var(--darkreader-neutral-background) !important;
+}
+div[style*="www.gstatic.com/android/"] {
+    background: none !important;
+}
+*[style*="background:#f9f9f9"] {
+    background: var(--darkreader-background-f9f9f9, #1b1e1f) !important;
+}
+body.mediawiki.skin-vector #mw-page-base {
+    background-image: none !important;
+}</style><style type="text/css">.CtxtMenu_InfoClose {  top:.2em; right:.2em;}
+.CtxtMenu_InfoContent {  overflow:auto; text-align:left; font-size:80%;  padding:.4em .6em; border:1px inset; margin:1em 0px;  max-height:20em; max-width:30em; background-color:#EEEEEE;  white-space:normal;}
+.CtxtMenu_Info.CtxtMenu_MousePost {outline:none;}
+.CtxtMenu_Info {  position:fixed; left:50%; width:auto; text-align:center;  border:3px outset; padding:1em 2em; background-color:#DDDDDD;  color:black;  cursor:default; font-family:message-box; font-size:120%;  font-style:normal; text-indent:0; text-transform:none;  line-height:normal; letter-spacing:normal; word-spacing:normal;  word-wrap:normal; white-space:nowrap; float:none; z-index:201;  border-radius: 15px;                     /* Opera 10.5 and IE9 */  -webkit-border-radius:15px;               /* Safari and Chrome */  -moz-border-radius:15px;                  /* Firefox */  -khtml-border-radius:15px;                /* Konqueror */  box-shadow:0px 10px 20px #808080;         /* Opera 10.5 and IE9 */  -webkit-box-shadow:0px 10px 20px #808080; /* Safari 3 & Chrome */  -moz-box-shadow:0px 10px 20px #808080;    /* Forefox 3.5 */  -khtml-box-shadow:0px 10px 20px #808080;  /* Konqueror */  filter:progid:DXImageTransform.Microsoft.dropshadow(OffX=2, OffY=2, Color="gray", Positive="true"); /* IE */}
+</style><style class="darkreader darkreader--sync" media="screen"></style><style type="text/css">.CtxtMenu_MenuClose {  position:absolute;  cursor:pointer;  display:inline-block;  border:2px solid #AAA;  border-radius:18px;  -webkit-border-radius: 18px;             /* Safari and Chrome */  -moz-border-radius: 18px;                /* Firefox */  -khtml-border-radius: 18px;              /* Konqueror */  font-family: "Courier New", Courier;  font-size:24px;  color:#F0F0F0}
+.CtxtMenu_MenuClose span {  display:block; background-color:#AAA; border:1.5px solid;  border-radius:18px;  -webkit-border-radius: 18px;             /* Safari and Chrome */  -moz-border-radius: 18px;                /* Firefox */  -khtml-border-radius: 18px;              /* Konqueror */  line-height:0;  padding:8px 0 6px     /* may need to be browser-specific */}
+.CtxtMenu_MenuClose:hover {  color:white!important;  border:2px solid #CCC!important}
+.CtxtMenu_MenuClose:hover span {  background-color:#CCC!important}
+.CtxtMenu_MenuClose:hover:focus {  outline:none}
+</style><style class="darkreader darkreader--sync" media="screen"></style><style type="text/css">.CtxtMenu_Menu {  position:absolute;  background-color:white;  color:black;  width:auto; padding:5px 0px;  border:1px solid #CCCCCC; margin:0; cursor:default;  font: menu; text-align:left; text-indent:0; text-transform:none;  line-height:normal; letter-spacing:normal; word-spacing:normal;  word-wrap:normal; white-space:nowrap; float:none; z-index:201;  border-radius: 5px;                     /* Opera 10.5 and IE9 */  -webkit-border-radius: 5px;             /* Safari and Chrome */  -moz-border-radius: 5px;                /* Firefox */  -khtml-border-radius: 5px;              /* Konqueror */  box-shadow:0px 10px 20px #808080;         /* Opera 10.5 and IE9 */  -webkit-box-shadow:0px 10px 20px #808080; /* Safari 3 & Chrome */  -moz-box-shadow:0px 10px 20px #808080;    /* Forefox 3.5 */  -khtml-box-shadow:0px 10px 20px #808080;  /* Konqueror */}
+.CtxtMenu_MenuItem {  padding: 1px 2em;  background:transparent;}
+.CtxtMenu_MenuArrow {  position:absolute; right:.5em; padding-top:.25em; color:#666666;  font-family: null; font-size: .75em}
+.CtxtMenu_MenuActive .CtxtMenu_MenuArrow {color:white}
+.CtxtMenu_MenuArrow.CtxtMenu_RTL {left:.5em; right:auto}
+.CtxtMenu_MenuCheck {  position:absolute; left:.7em;  font-family: null}
+.CtxtMenu_MenuCheck.CtxtMenu_RTL { right:.7em; left:auto }
+.CtxtMenu_MenuRadioCheck {  position:absolute; left: .7em;}
+.CtxtMenu_MenuRadioCheck.CtxtMenu_RTL {  right: .7em; left:auto}
+.CtxtMenu_MenuInputBox {  padding-left: 1em; right:.5em; color:#666666;  font-family: null;}
+.CtxtMenu_MenuInputBox.CtxtMenu_RTL {  left: .1em;}
+.CtxtMenu_MenuComboBox {  left:.1em; padding-bottom:.5em;}
+.CtxtMenu_MenuSlider {  left: .1em;}
+.CtxtMenu_SliderValue {  position:absolute; right:.1em; padding-top:.25em; color:#333333;  font-size: .75em}
+.CtxtMenu_SliderBar {  outline: none; background: #d3d3d3}
+.CtxtMenu_MenuLabel {  padding: 1px 2em 3px 1.33em;  font-style:italic}
+.CtxtMenu_MenuRule {  border-top: 1px solid #DDDDDD;  margin: 4px 3px;}
+.CtxtMenu_MenuDisabled {  color:GrayText}
+.CtxtMenu_MenuActive {  background-color: #606872;  color: white;}
+.CtxtMenu_MenuDisabled:focus {  background-color: #E8E8E8}
+.CtxtMenu_MenuLabel:focus {  background-color: #E8E8E8}
+.CtxtMenu_ContextMenu:focus {  outline:none}
+.CtxtMenu_ContextMenu .CtxtMenu_MenuItem:focus {  outline:none}
+.CtxtMenu_SelectionMenu {  position:relative; float:left;  border-bottom: none; -webkit-box-shadow:none; -webkit-border-radius:0px; }
+.CtxtMenu_SelectionItem {  padding-right: 1em;}
+.CtxtMenu_Selection {  right: 40%; width:50%; }
+.CtxtMenu_SelectionBox {  padding: 0em; max-height:20em; max-width: none;  background-color:#FFFFFF;}
+.CtxtMenu_SelectionDivider {  clear: both; border-top: 2px solid #000000;}
+.CtxtMenu_Menu .CtxtMenu_MenuClose {  top:-10px; left:-10px}
+</style><style class="darkreader darkreader--sync" media="screen"></style><style id="MJX-SVG-styles">
+mjx-container[jax="SVG"] {
+  direction: ltr;
+}
+
+mjx-container[jax="SVG"] > svg {
+  overflow: visible;
+  min-height: 1px;
+  min-width: 1px;
+}
+
+mjx-container[jax="SVG"] > svg a {
+  fill: blue;
+  stroke: blue;
+}
+
+mjx-assistive-mml {
+  position: absolute !important;
+  top: 0px;
+  left: 0px;
+  clip: rect(1px, 1px, 1px, 1px);
+  padding: 1px 0px 0px 0px !important;
+  border: 0px !important;
+  display: block !important;
+  width: auto !important;
+  overflow: hidden !important;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -khtml-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+mjx-assistive-mml[display="block"] {
+  width: 100% !important;
+}
+
+mjx-container[jax="SVG"][display="true"] {
+  display: block;
+  text-align: center;
+  margin: 1em 0;
+}
+
+mjx-container[jax="SVG"][display="true"][width="full"] {
+  display: flex;
+}
+
+mjx-container[jax="SVG"][justify="left"] {
+  text-align: left;
+}
+
+mjx-container[jax="SVG"][justify="right"] {
+  text-align: right;
+}
+
+g[data-mml-node="merror"] > g {
+  fill: red;
+  stroke: red;
+}
+
+g[data-mml-node="merror"] > rect[data-background] {
+  fill: yellow;
+  stroke: none;
+}
+
+g[data-mml-node="mtable"] > line[data-line], svg[data-table] > g > line[data-line] {
+  stroke-width: 70px;
+  fill: none;
+}
+
+g[data-mml-node="mtable"] > rect[data-frame], svg[data-table] > g > rect[data-frame] {
+  stroke-width: 70px;
+  fill: none;
+}
+
+g[data-mml-node="mtable"] > .mjx-dashed, svg[data-table] > g > .mjx-dashed {
+  stroke-dasharray: 140;
+}
+
+g[data-mml-node="mtable"] > .mjx-dotted, svg[data-table] > g > .mjx-dotted {
+  stroke-linecap: round;
+  stroke-dasharray: 0,140;
+}
+
+g[data-mml-node="mtable"] > g > svg {
+  overflow: visible;
+}
+
+[jax="SVG"] mjx-tool {
+  display: inline-block;
+  position: relative;
+  width: 0;
+  height: 0;
+}
+
+[jax="SVG"] mjx-tool > mjx-tip {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+mjx-tool > mjx-tip {
+  display: inline-block;
+  padding: .2em;
+  border: 1px solid #888;
+  font-size: 70%;
+  background-color: #F8F8F8;
+  color: black;
+  box-shadow: 2px 2px 5px #AAAAAA;
+}
+
+g[data-mml-node="maction"][data-toggle] {
+  cursor: pointer;
+}
+
+mjx-status {
+  display: block;
+  position: fixed;
+  left: 1em;
+  bottom: 1em;
+  min-width: 25%;
+  padding: .2em .4em;
+  border: 1px solid #888;
+  font-size: 90%;
+  background-color: #F8F8F8;
+  color: black;
+}
+
+foreignObject[data-mjx-xml] {
+  font-family: initial;
+  line-height: normal;
+  overflow: visible;
+}
+
+mjx-container[jax="SVG"] path[data-c], mjx-container[jax="SVG"] use[data-c] {
+  stroke-width: 3;
+}
+</style><style class="darkreader darkreader--sync" media="screen"></style></head>
+<body>
+<div class="topbar">
+  <a class="home" href="http://10.130.130.9:10000/index.html">← 课程主页</a>
+  <span class="sep">/</span>
+  <span class="cur">Day 1 下午 · 环境搭建与系统观察</span>
+</div>
+<article>
+<h1>Day 1 下午 · 环境搭建与系统观察</h1>
+<blockquote>
+<p>一句话目标：把开发环境搭好、让 mini-OpenClaw 骨架自检通过，并观察 Claude Code 内部是怎么干活的。
+本次产出：① Claude Code 观察笔记（自用，不提交）② 分组与领域登记 ③ 能跑通 <code>python -m agent.cli --selfcheck</code> 的 mini-OpenClaw 仓库。
+涉及的 starter 文件：<code>agent/cli.py</code>（<code>--selfcheck</code>）、<code>backend/client.py</code>（DeepSeek 配置）。本日为<strong>本日构建目标（不单独计分，计入最终展示）</strong>。</p>
+</blockquote>
+<h2>开始之前</h2>
+<ul>
+<li>你需要：一台能联网的电脑、已装好 <code>conda</code>（或 miniconda）、<code>git</code>、<code>Node.js ≥ 18</code>（步骤 1 装 Claude Code 用）。</li>
+<li>一把 <strong>DeepSeek API key</strong>（<code>sk-</code> 开头）：它既驱动步骤 1 的 Claude Code，也驱动你后面每天要搭的 mini-OpenClaw。没有就先找课程领一把。</li>
+<li>动手前先过一遍 <a href="http://10.130.130.9:10000/day01-%E5%AF%BC%E8%AE%BA%E4%B8%8E%E7%8E%AF%E5%A2%83/Claude-Code-%E4%BD%BF%E7%94%A8%E6%8A%80%E5%B7%A7.html"><code>Claude-Code-使用技巧.md</code></a>，重点看：基础工作流、<code>/plan</code> <code>/diff</code> <code>/export</code> 命令、"导出会话轨迹"一节（步骤 2 会用）。</li>
+<li>各天增量依赖、API 退路见文末 <strong>附录</strong>。</li>
+</ul>
+<hr>
+<h2>步骤 1 · 准备 Claude Code（用你的 DeepSeek key 驱动）</h2>
+<blockquote>
+<p>你不需要 Anthropic 账号——Claude Code（CC）直接用<strong>你已有的 DeepSeek key</strong> 驱动。原理：DeepSeek 提供 Anthropic 兼容接口（<code>https://api.deepseek.com/anthropic</code>），CC 只认几个 <code>ANTHROPIC_*</code> 环境变量，指过去即可。</p>
+</blockquote>
+<ol>
+<li>安装 CC（需 Node.js ≥ 18）并确认版本：
+   <pre class="highlight"><code class="language-bash">npm install -g @anthropic-ai/claude-code
+claude --version</code></pre></li>
+<li>让 CC 走 DeepSeek——把下面几行写进你的 shell 配置（<code>~/.zshrc</code> / <code>~/.bashrc</code>），然后 <code>source</code> 生效。其中 <code>DEEPSEEK_API_KEY</code> 就是步骤 5 要配的那把 key（可现在先配好）：
+   <pre class="highlight"><code class="language-bash">export DEEPSEEK_API_KEY="sk-你的key"
+export ANTHROPIC_BASE_URL="https://api.deepseek.com/anthropic"
+export ANTHROPIC_AUTH_TOKEN="$DEEPSEEK_API_KEY"
+export ANTHROPIC_MODEL="deepseek-v4-pro"           # 主模型：更强
+export ANTHROPIC_SMALL_FAST_MODEL="deepseek-v4-flash"  # 轻量快模型</code></pre></li>
+<li>新建一个<strong>空目录</strong>，在里面运行 <code>claude</code> 启动；可先 <code>/init</code> 让它读一遍目录。</li>
+<li>✅ <strong>验证</strong>：CC 进入交互界面后，发一句「你好，用一句话介绍你自己」，能收到 DeepSeek 的回复即说明整条链路（CC → DeepSeek）通了。若装不上或接口不通，用现场提供的<strong>轨迹样本</strong>完成步骤 2 的观察（见 <a href="http://10.130.130.9:10000/day01-%E5%AF%BC%E8%AE%BA%E4%B8%8E%E7%8E%AF%E5%A2%83/Day1%E8%A7%82%E5%AF%9F%E6%B4%BB%E5%8A%A8.html"><code>Day1观察活动.md</code></a>）。</li>
+</ol>
+<hr>
+<h2>步骤 2 · 用 Claude Code 完成一个任务并观察它</h2>
+<blockquote>
+<p>观察目标不是"把活干完"，而是看清它<strong>内部每一步在做什么</strong>——为上午那张四层架构图找真实证据。这一步的所有笔记<strong>都不提交</strong>。</p>
+</blockquote>
+<ol>
+<li>从下面任选一个任务（或按现场指定），交给 Claude Code 完成：
+   - <strong>代码修复</strong>：给一个有 bug 的小脚本（如埋了 <code>KeyError</code>／缩进错），让它定位并修复到能运行。
+   - <strong>日志分析</strong>：给一份报错日志，让它找出异常原因并给出修复建议。
+   - <strong>代码库导读</strong>：给一个陌生小 repo，让它总结结构和每个模块作用。</li>
+<li>全程盯住它的每一步，对照上午的四层架构（LLM / 主循环 / 工具系统 / 权限层）记录：
+   - 它<strong>调用了哪些工具</strong>？每个工具的输入输出长什么样？
+   - 它在哪一步<strong>做了决策</strong>（选 A 工具而不是 B）？依据是什么？
+   - 哪一步<strong>停下来征求许可</strong>？（权限层证据）
+   - 有没有<strong>失败后自我修复</strong>的片段？（错误恢复证据）
+   - 它一共<strong>和模型交互了几轮</strong>？
+3.（可选）留一份完整轨迹方便回看：在 Claude Code 内运行 <code>/export trace.txt</code>，导出为易读纯文本（含消息／工具调用／输出）。详见 <a href="http://10.130.130.9:10000/day01-%E5%AF%BC%E8%AE%BA%E4%B8%8E%E7%8E%AF%E5%A2%83/Claude-Code-%E4%BD%BF%E7%94%A8%E6%8A%80%E5%B7%A7.html"><code>Claude-Code-使用技巧.md</code></a> §7。</li>
+<li>✅ <strong>验证</strong>：你的笔记里至少写下 <strong>≥3 项关键设计决策</strong>。活动指引见 <a href="http://10.130.130.9:10000/day01-%E5%AF%BC%E8%AE%BA%E4%B8%8E%E7%8E%AF%E5%A2%83/Day1%E8%A7%82%E5%AF%9F%E6%B4%BB%E5%8A%A8.html"><code>Day1观察活动.md</code></a>。这份笔记自用，不提交。</li>
+</ol>
+<hr>
+<h2>步骤 3 · 分组与领域登记</h2>
+<ol>
+<li><strong>2–3 人</strong>自由组队。</li>
+<li>选定一个<strong>领域方向</strong>（全程不变，影响 Day3 评测任务集、Day5 Skill、Demo Day）：</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>方向</th>
+<th>典型任务</th>
+<th>Day5 Skill 例子</th>
+<th>Demo Day 现场任务示例</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>科研辅助</td>
+<td>读论文、整理文献、跑实验脚本</td>
+<td>"论文速读报告"</td>
+<td>给一篇论文 PDF/文本，产出结构化要点</td>
+</tr>
+<tr>
+<td>数据分析</td>
+<td>CSV/日志统计、出图、写报告</td>
+<td>"CSV 快速报告"（starter 已带示例）</td>
+<td>给一个 CSV，产出统计报告</td>
+</tr>
+<tr>
+<td>日志排障</td>
+<td>定位异常栈、grep 报错、给建议</td>
+<td>"异常栈定位"</td>
+<td>给一段报错日志，定位原因并建议修复</td>
+</tr>
+<tr>
+<td>代码库导读</td>
+<td>陌生 repo 摸索、模块说明、找 TODO</td>
+<td>"陌生仓库导读"</td>
+<td>给一个小 repo，生成模块说明</td>
+</tr>
+</tbody>
+</table>
+<p>选方向自检：你们能为该领域写出像样的 Skill 吗（Day5）？能在 Demo Day 现场演一个该领域任务吗（Day6）？两个都"能"再定。
+3. ✅ <strong>验证</strong>：把 <code>组名 / 成员 / 领域方向 / 一句话目标场景</code> 登记表交到现场登记处。</p>
+<hr>
+<h2>步骤 4 · 拿到 starter 骨架</h2>
+<blockquote>
+<p>全组共用一个 git 仓库。今天只需让骨架<strong>自检通过</strong>，后面逐天往里填。</p>
+</blockquote>
+<ol>
+<li>获取 starter（现场发的压缩包或 git 地址），复制成你们组的仓库并初始化：
+   <pre class="highlight"><code class="language-bash">cp -r &lt;starter路径&gt; mini-openclaw      # 或 git clone &lt;地址&gt; mini-openclaw
+cd mini-openclaw
+git init &amp;&amp; git add -A &amp;&amp; git commit -m "day1: init skeleton"</code></pre></li>
+<li>通读 <a href="http://10.130.130.9:10000/README.html"><code></code></a><code><a href="http://10.130.130.9:10000/README.html">README.md</a></code> 了解骨架结构：
+   <pre class="highlight"><code>backend/  agent/  tools/  mcp/  skills/  eval/  prompt/  requirements.txt</code></pre></li>
+<li>✅ <strong>验证</strong>：<code>ls</code> 能看到上述目录，且当前工作目录在 <code>mini-openclaw</code> 仓库根。</li>
+</ol>
+<hr>
+<h2>步骤 5 · 建环境、配 API key</h2>
+<ol>
+<li>创建并激活 conda 环境，装依赖（agent 依赖很轻：<code>httpx</code>/<code>pydantic</code>/<code>markdownify</code>）：
+   <pre class="highlight"><code class="language-bash">conda create -n openclaw python=3.11 -y &amp;&amp; conda activate openclaw
+pip install -r requirements.txt</code></pre>
+   再装系统工具 <code>ripgrep</code>（Day4 的 grep 工具会用）：<code>brew install ripgrep</code>（macOS）/ <code>apt install ripgrep</code>（Linux）。其余各天的增量依赖见文末附录，按需再装。</li>
+<li>配置 DeepSeek API key（写进你的 shell rc，<strong>别提交进 git</strong>）。若步骤 1 已配过就跳过：
+   <pre class="highlight"><code class="language-bash">export DEEPSEEK_API_KEY="sk-你的key"</code></pre>
+   相关环境变量（<code>backend/client.py</code> 读取）：<code>DEEPSEEK_API_KEY</code>、<code>DEEPSEEK_BASE_URL</code>（默认 <code>https://api.deepseek.com</code>）、<code>DEEPSEEK_MODEL</code>（默认 <code>deepseek-v4-flash</code>，轻量快、够用；更强可设 <code>deepseek-v4-pro</code>）。</li>
+<li>✅ <strong>验证（可选，需要 key）</strong>：确认 key 能成功调一次——
+   <pre class="highlight"><code class="language-bash">python -c "from backend.client import DeepSeekBackend; print(DeepSeekBackend().chat([{'role':'user','content':'说你好'}]))"</code></pre>
+   打印出一个含 <code>content</code> 的字典即说明 API 通了。没 key 也不影响下一步。</li>
+</ol>
+<hr>
+<h2>步骤 6 · 跑通骨架自检</h2>
+<ol>
+<li>在仓库根目录运行自检（<code>agent/cli.py</code> 的 <code>--selfcheck</code> 分支，不需要 key）：
+   <pre class="highlight"><code class="language-bash">python -m agent.cli --selfcheck</code></pre></li>
+<li>✅ <strong>验证</strong>：看到下面这样的输出，最后一行为 <code>通过 ✅</code>：
+   <pre class="highlight"><code>== mini-OpenClaw 自检 ==
+[ok] 工具注册表加载成功，当前内置工具数：0（Day4 起会变多）
+[ok] FakeBackend 可用（未配 DEEPSEEK_API_KEY 时的离线占位后端）
+[ok] 主循环模块可导入（Day4 实现 run 逻辑）
+== 自检 通过 ✅ ==
+
+下一步：按 dayNN 的 lab-guide 填 # TODO 标记。</code></pre></li>
+</ol>
+<hr>
+<h2>步骤 7 · 建立"施工地图"</h2>
+<ol>
+<li>全仓库搜一下 TODO，看清 8 天的施工顺序：
+   <pre class="highlight"><code class="language-bash">grep -rn "TODO\[Day" .</code></pre></li>
+<li>每个模块都标了 <code># TODO[DayN]</code>——这就是你后面每天要填的地方。今天<strong>不用写任何实现</strong>，看懂结构即可。</li>
+<li>在你们仓库的 README 里约定：按里程碑打 tag（<code>v1</code>(Day4) / <code>v3</code>(Day5) / <code>final</code>(Day6)）；每个模块的设计决策写进各自 README（计入最终展示评分，见 <a href="http://10.130.130.9:10000/00-%E8%AF%BE%E7%A8%8B%E6%80%BB%E8%A7%88/%E8%80%83%E6%A0%B8%E4%B8%8E%E8%AF%84%E5%88%86%E6%80%BB%E8%A1%A8.html"><code></code></a><code><a href="http://10.130.130.9:10000/00-%E8%AF%BE%E7%A8%8B%E6%80%BB%E8%A7%88/%E8%80%83%E6%A0%B8%E4%B8%8E%E8%AF%84%E5%88%86%E6%80%BB%E8%A1%A8.html">../00-课程总览/考核与评分总表.md</a></code> §2），别等最后补。</li>
+<li>✅ <strong>验证</strong>：<code>grep</code> 输出里能看到分布在各模块的 <code>TODO[Day2]</code>~<code>TODO[Day5]</code> 标记。</li>
+</ol>
+<hr>
+<h2>步骤 8 · 部署上线（把 mini-OpenClaw 跑到平台上）</h2>
+<blockquote>
+<p>课程提供一个部署平台：上传 starter.zip 就能把你们组的 agent 跑成一个<strong>网页终端</strong>，别人打开链接即可用。今天先用 <code>--selfcheck</code> 跑通整条部署流程，Demo Day 直接复用同一套。</p>
+</blockquote>
+<ol>
+<li><strong>登录</strong>：打开 <code>http://10.130.130.9:8000</code>，用你们的<strong>组号账号</strong>登录（如 <code>g01</code>）。</li>
+<li><strong>部署（3 步）</strong>：
+   - <strong>上传 <code>starter.zip</code></strong>（你们组当前的仓库打包；无需自己写 Dockerfile，平台自动补）。
+   - <strong>填环境变量</strong>：<code>DEEPSEEK_API_KEY=sk-...</code>（必填）；可选 <code>DEEPSEEK_MODEL</code> / <code>DEEPSEEK_BASE_URL</code>。
+   - 点 <strong>「构建并部署」</strong>，等状态<strong>变绿</strong>（构建 + 启动完成）。</li>
+<li><strong>展示 / 自测</strong>：把你们的地址 <code>http://10.130.130.9:80NN</code>（<code>NN</code> 为你们组号）发给观众，打开即是一个网页终端，在里面运行：
+   <pre class="highlight"><code class="language-bash">python -m agent.cli --selfcheck
+python -m agent.cli "创建 hello.py 并运行"</code></pre><blockquote>
+<p>说明：<code>--selfcheck</code> 今天就能通过；<code>"创建 hello.py 并运行"</code> 依赖 read/write/bash 等工具，要到 <strong>Day4 起</strong>才逐步可用。今天跑通 <code>--selfcheck</code> 即达标，第二条留作后续里程碑的现场验收。</p>
+</blockquote>
+</li>
+<li>✅ <strong>验证</strong>：平台状态为绿色，网页终端里 <code>python -m agent.cli --selfcheck</code> 输出 <code>== 自检 通过 ✅ ==</code>。</li>
+</ol>
+<hr>
+<h2>完成检查（本日构建目标，不单独计分，计入最终展示）</h2>
+<ul>
+<li>☐ Claude Code 可用（或已用轨迹样本完成观察），观察笔记记满 ≥3 项关键设计决策（自用，不提交）。</li>
+<li>☐ 分组与领域登记表已提交。</li>
+<li>☐ <code>mini-openclaw</code> 仓库已 <code>git init</code> 并首次提交。</li>
+<li>☐ <code>conda activate openclaw</code> 后 <code>pip install -r requirements.txt</code> 成功。</li>
+<li>☐ （有 key 时）步骤 5 的一次真实 API 调用能打印回复。</li>
+<li>☐ <code>python -m agent.cli --selfcheck</code> 输出 <code>== 自检 通过 ✅ ==</code>。</li>
+<li>☐ 已在部署平台（<code>http://10.130.130.9:8000</code>）用组号账号部署成功，网页终端里 <code>--selfcheck</code> 通过。</li>
+</ul>
+<h2>常见报错</h2>
+<ul>
+<li><strong>现象：<code>claude</code> 命令找不到</strong> → Node.js 未装或版本 &lt; 18，或全局 npm bin 不在 <code>PATH</code>；<code>node -v</code> 确认版本，必要时把 <code>npm bin -g</code> 的路径加进 <code>PATH</code>。</li>
+<li><strong>现象：CC 报鉴权/401 或连接错误</strong> → <code>ANTHROPIC_*</code> 没配全或没 <code>source</code>；确认 <code>ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic</code>、<code>ANTHROPIC_AUTH_TOKEN</code> 里是有效的 DeepSeek key、<code>echo $ANTHROPIC_MODEL</code> 为 <code>deepseek-v4-pro</code>。</li>
+<li><strong>现象：Claude Code 装不上／接口连不上</strong> → 别卡在环境上，用现场提供的轨迹样本完成步骤 2 的观察（见 <a href="http://10.130.130.9:10000/day01-%E5%AF%BC%E8%AE%BA%E4%B8%8E%E7%8E%AF%E5%A2%83/Day1%E8%A7%82%E5%AF%9F%E6%B4%BB%E5%8A%A8.html"><code>Day1观察活动.md</code></a>）。</li>
+<li><strong>现象：<code>python -m agent.cli</code> 报 <code>ModuleNotFoundError</code></strong> → 你不在 <code>mini-openclaw</code> 仓库根目录，或没 <code>conda activate openclaw</code>；<code>cd</code> 回仓库根、重新激活环境。</li>
+<li><strong>现象：<code>pip install -r requirements.txt</code> 失败</strong> → 确认已激活 <code>openclaw</code> 环境、网络可用；单独重试报错的那个包。</li>
+<li><strong>现象：步骤 5 的 key 自测报错</strong> → 检查 <code>DEEPSEEK_API_KEY</code> 是否已 <code>export</code>、值是否正确、网络能否访问 <code>DEEPSEEK_BASE_URL</code>。没 key 时跳过此项即可，<code>--selfcheck</code> 仍会通过。</li>
+<li><strong>现象：找不到导出的轨迹文件</strong> → <code>ls ~/.claude/projects/</code> 看有哪些项目目录，找最新修改的 <code>.jsonl</code>；能用 <code>/export</code> 就优先用它。</li>
+<li><strong>现象：平台部署状态一直不变绿 / 构建失败</strong> → 多半是 <code>starter.zip</code> 打包时把仓库根目录多套了一层，或漏了 <code>requirements.txt</code>；确认解压后<strong>根目录</strong>直接是 <code>agent/ backend/ tools/ requirements.txt</code>。运行期报鉴权错则是<strong>环境变量 <code>DEEPSEEK_API_KEY</code> 没在平台里填</strong>。</li>
+</ul>
+<hr>
+<h2>附录 · 全程环境速查</h2>
+<h3>A. 各天增量依赖（按需再装，不必今天装全）</h3>
+<table>
+<thead>
+<tr>
+<th>Day</th>
+<th>增量依赖</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2</td>
+<td>仅需 <code>httpx</code> 调 DeepSeek（后端连通）；Transformer 为纯讲授，无需装库</td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>tokenizers</code> 或 <code>transformers</code>（观察 tokenizer 切分，可选）</td>
+</tr>
+<tr>
+<td>4</td>
+<td>仅需 <code>httpx</code> 调 DeepSeek</td>
+</tr>
+<tr>
+<td>5–7</td>
+<td>纯 Python：<code>httpx</code>、<code>ripgrep</code>(系统)、<code>markdownify</code></td>
+</tr>
+<tr>
+<td>8</td>
+<td>MCP：最小客户端无需额外依赖；做对照可装官方 <code>mcp</code> SDK，接官方 filesystem server 需 Node/npx</td>
+</tr>
+<tr>
+<td>10</td>
+<td>安全（可选演示）：<code>bubblewrap (bwrap)</code> / <code>firejail</code> / <code>docker</code> 任选其一</td>
+</tr>
+</tbody>
+</table>
+<h3>B. API 退路（DeepSeek 暂不可用时）</h3>
+<ul>
+<li><strong>mini-OpenClaw 后端</strong>：<code>backend/client.py</code> 是 OpenAI 兼容写法——改 <code>DEEPSEEK_BASE_URL</code> / <code>DEEPSEEK_MODEL</code> 即可换任意兼容厂商（智谱 GLM、阿里 Qwen、本地 vLLM…）。</li>
+<li><strong>Claude Code</strong>：同理，<code>ANTHROPIC_BASE_URL</code> 指向任一 Anthropic 兼容网关即可换后端；接口不通时退回轨迹样本做观察（见 <a href="http://10.130.130.9:10000/day01-%E5%AF%BC%E8%AE%BA%E4%B8%8E%E7%8E%AF%E5%A2%83/Day1%E8%A7%82%E5%AF%9F%E6%B4%BB%E5%8A%A8.html"><code>Day1观察活动.md</code></a>）。</li>
+</ul>
+</article>
+<div class="foot">mini-OpenClaw · 阅读讲义 · <a href="http://10.130.130.9:10000/index.html">返回课程主页</a></div>
+
+
+<svg id="MJX-SVG-global-cache" style="display: none;"><defs></defs></svg></body></html>
