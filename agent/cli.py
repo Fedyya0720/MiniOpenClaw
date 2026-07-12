@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 
 from tools.base import build_default_registry
+from agent.memory import Memory, inject_memory
 from agent.prompts import build_system_prompt
 from skills.loader import load_skills, skills_catalog
 
@@ -104,7 +105,9 @@ def main(argv: list[str] | None = None) -> int:
         _wire_mcp(reg)
         backend = _make_backend()
         skills = load_skills()
-        system_prompt = build_system_prompt(skills_catalog(skills))
+        system_prompt = inject_memory(
+            build_system_prompt(skills_catalog(skills)), Memory(Path.cwd() / "MEMORY.md")
+        )
         run_tui(backend, reg, system_prompt, auto_approve=args.auto_approve)
         return 0
 
@@ -117,7 +120,9 @@ def main(argv: list[str] | None = None) -> int:
     _wire_mcp(reg)
     backend = _make_backend()
     skills = load_skills()
-    system_prompt = build_system_prompt(skills_catalog(skills))
+    system_prompt = inject_memory(
+        build_system_prompt(skills_catalog(skills)), Memory(Path.cwd() / "MEMORY.md")
+    )
     agent = AgentLoop(backend, reg, system_prompt,
                       auto_approve=args.auto_approve, workdir=Path.cwd())
     print(agent.run(args.task, images=args.image))
