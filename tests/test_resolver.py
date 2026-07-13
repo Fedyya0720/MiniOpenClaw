@@ -151,5 +151,129 @@ class SpecifierTest(unittest.TestCase):
             matches("1.0weird1", ">=1")
 
 
+class CombinationsTest(unittest.TestCase):
+    def setUp(self):
+        import resolver.combinations as mod
+        self.mod = mod
+        # Reset cache between tests so fixtures are self-contained.
+        mod._VERSION_CACHE.clear()
+        mod._fetch_versions_impl = None
+
+    def tearDown(self):
+        self.mod._VERSION_CACHE.clear()
+        self.mod._fetch_versions_impl = None
+
+    def test_basic_combinations_with_mocked_versions(self):
+        self.mod._fetch_versions_impl = lambda pkg: {
+            "numpy": ["2.0.0", "1.26.4", "1.24.0"],
+            "requests": ["2.31.0", "2.28.0"],
+        }.get(pkg, [])
+        deps = [{"name": "numpy", "specifier": ""}, {"name": "requests", "specifier": ""}]
+        result = self.mod.generate_combinations(deps, max_candidates=10)
+        self.assertEqual(result["returned"], 6)  # 3 × 2
+        self.assertEqual(result["pruned_by_constraint"], 0)
+        names = {tuple(sorted(c.keys())) for c in result["combinations"]}
+        self.assertEqual(names, {("numpy", "requests")})
+
+    def test_specifier_filters_versions(self):
+        self.mod._fetch_versions_impl = lambda pkg: {
+            "numpy": ["2.1.0", "2.0.0", "1.26.4", "1.24.0"],
+        }.get(pkg, [])
+        deps = [{"name": "numpy", "specifier": ">=2.0,<2.1"}]
+        result = self.mod.generate_combinations(deps, max_candidates=5)
+        # Only 2.0.0 matches >=2.0,<2.1
+        self.assertEqual(result["returned"], 1)
+        self.assertEqual(result["combinations"][0]["numpy"], "2.0.0")
+
+    def test_constraint_prunes_conflicting_pairs(self):
+        self.mod._fetch_versions_impl = lambda pkg: {
+            "numpy": ["2.0.0", "1.26.4"],
+            "torch": ["2.5.0", "2.4.0"],
+        }.get(pkg, [])
+        deps = [{"name": "numpy", "specifier": ""}, {"name": "torch", "specifier": ""}]
+        constraints = [
+            {"pkg_a": "numpy", "ver_a": "2.0.0", "pkg_b": "torch", "ver_b": "2.5.0"},
+            {"pkg_a": "numpy", "ver_a": "1.26.4", "pkg_b": "torch", "ver_b": "2.4.0"},
+        ]
+        result = self.mod.generate_combinations(deps, constraints, max_candidates=10)
+        # 2×2 = 4 combos total; 2 pruned by constraint → 2 remain.
+        self.assertEqual(result["pruned_by_constraint"], 2)
+        self.assertEqual(result["returned"], 2)
+        for combo in result["combinations"]:
+            combo_pair = (combo["numpy"], combo["torch"])
+            self.assertNotIn(combo_pair, {("2.0.0", "2.5.0"), ("1.26.4", "2.4.0")})
+
+    def test_max_candidates_caps_output(self):
+        self.mod._fetch_versions_impl = lambda pkg: {
+            "a": [str(v) for v in range(10)],
+            "b": [str(v) for v in range(10)],
+        }.get(pkg, [])
+        deps = [{"name": "a", "specifier": ""}, {"name": "b", "specifier": ""}]
+        result = self.mod.generate_combinations(deps, max_candidates=5)
+        self.assertEqual(result["returned"], 5)
+
+    def test_non_searchable_dependency_pinned_to_combinations(self):
+        self.mod._fetch_versions_impl = lambda pkg: {
+            "requests": ["2.31.0", "2.28.0"],
+        }.get(pkg, [])
+        deps = [
+            {"name": "requests", "specifier": ""},
+            {"name": "private-lib", "specifier": "", "non_searchable": True,
+             "direct_reference": "git+https://git.example/private.git"},
+        ]
+        result = self.mod.generate_combinations(deps, max_candidates=5)
+        self.assertEqual(result["non_searchable_count"], 1)
+        for combo in result["combinations"]:
+            self.assertEqual(combo["private-lib"], "git+https://git.example/private.git")
+
+    def test_non_searchable_only_returns_one_pinned_entry(self):
+        deps = [
+            {"name": "priv", "non_searchable": True,
+             "direct_reference": "file://./priv.whl"},
+        ]
+        result = self.mod.generate_combinations(deps, max_candidates=5)
+        self.assertEqual(result["returned"], 1)
+        self.assertEqual(result["combinations"][0], {"priv": "file://./priv.whl"})
+
+    def test_empty_dependencies_returns_empty_combinations(self):
+        result = self.mod.generate_combinations([], max_candidates=5)
+        self.assertEqual(result["returned"], 0)
+        self.assertEqual(result["combinations"], [])
+
+    def test_version_cache_is_reused_across_calls(self):
+        import resolver.combinations as fresh
+        call_count = 0
+
+        def counting(pkg):
+            nonlocal call_count
+            call_count += 1
+            return {"numpy": ["2.0.0"]}.get(pkg, [])
+
+        fresh._fetch_versions_impl = counting
+        fresh._VERSION_CACHE.clear()
+        fresh.generate_combinations([{"name": "numpy", "specifier": ""}], max_candidates=5)
+        first = call_count
+        fresh.generate_combinations([{"name": "numpy", "specifier": ""}], max_candidates=5)
+        self.assertEqual(call_count, first)  # no additional calls
+        fresh._fetch_versions_impl = None
+        fresh._VERSION_CACHE.clear()
+
+    def test_tool_produces_json_with_constraint_and_version_metadata(self):
+        from tools.resolver_tools import generate_combinations_tool
+        self.mod._fetch_versions_impl = lambda pkg: {
+            "flask": ["3.0.0", "2.3.0"],
+        }.get(pkg, [])
+        deps = [{"name": "flask", "specifier": ">=2.3"}]
+        constraints = [{"pkg_a": "flask", "ver_a": "3.0.0", "pkg_b": "click", "ver_b": "9.0"}]
+        output = generate_combinations_tool.run(
+            dependencies=deps, constraints=constraints, max_candidates=10,
+        )
+        parsed = json.loads(output)
+        self.assertTrue(parsed["ok"])
+        self.assertEqual(parsed["returned"], 2)
+        self.assertEqual(len(parsed["combinations"]), 2)
+        self.assertIn("version_sources", parsed)
+
+
 if __name__ == "__main__":
     unittest.main()

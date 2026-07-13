@@ -316,8 +316,9 @@ class EnvironmentPoolTest(unittest.TestCase):
     def test_registry_has_phase1_names(self):
         from tools.base import build_default_registry
         registry = build_default_registry()
-        self.assertEqual(len(registry), 14)
-        for name in ("env_create", "env_run", "env_status", "env_cleanup", "parse_deps"):
+        self.assertEqual(len(registry), 15)
+        for name in ("env_create", "env_run", "env_status", "env_cleanup", "parse_deps",
+                     "generate_combinations"):
             self.assertIn(name, registry.names())
 
 
