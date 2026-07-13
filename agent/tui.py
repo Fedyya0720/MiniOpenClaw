@@ -35,6 +35,7 @@ from prompt_toolkit.history import FileHistory
 from prompt_toolkit.completion import Completer, Completion, PathCompleter
 
 from tools.base import ToolRegistry
+from agent.context import resolve_token_budget
 from agent.strategy import ReactCallbacks, run_react_turns
 
 
@@ -184,6 +185,7 @@ def _fake_stream(backend: Any, messages: list[dict], tools: list[dict] | None = 
     resp = backend.chat(messages, tools)
     content = resp.get("content", "")
     tool_calls = resp.get("tool_calls") or []
+    usage = resp.get("usage") or {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
 
     # 逐字产出 content
     for ch in content:
@@ -201,7 +203,7 @@ def _fake_stream(backend: Any, messages: list[dict], tools: list[dict] | None = 
         # 一次给完
         yield {"type": "tool_call_args", "index": i, "delta": args_str}
 
-    yield {"type": "done", "content": content, "tool_calls": tool_calls}
+    yield {"type": "done", "content": content, "tool_calls": tool_calls, "usage": usage}
 
 
 def _get_stream(backend: Any):
@@ -219,12 +221,14 @@ def _make_backend_call(backend: Any, console: Console):
     """返回一个 backend_call(messages, tools) -> assistant_dict 包装函数。
 
     包装函数内部使用 chat_stream（或 _fake_stream 兜底）并实时刷新 Rich Live。
+    返回的 dict 包含 ``content``、``tool_calls`` 和 ``usage``。
     """
     stream_fn = _get_stream(backend)
 
     def backend_call(messages: list[dict[str, Any]], tools: list[dict] | None) -> dict:
         final_content = ""
         tool_calls_result: list[dict[str, Any]] = []
+        usage_result: dict[str, Any] = {}
 
         def _initial_panel() -> Panel:
             return Panel(
@@ -256,16 +260,19 @@ def _make_backend_call(backend: Any, console: Console):
                     elif event["type"] == "done":
                         final_content = event["content"]
                         tool_calls_result = event["tool_calls"]
+                        usage_result = event.get("usage") or {}
         else:
             with Live(_initial_panel(), console=console, refresh_per_second=20, transient=True) as live:
                 for event in _fake_stream(backend, messages, tools=tools):
                     if event["type"] == "done":
                         final_content = event["content"]
                         tool_calls_result = event["tool_calls"]
+                        usage_result = event.get("usage") or {}
 
         return {
             "content": final_content,
             "tool_calls": tool_calls_result,
+            "usage": usage_result,
         }
 
     return backend_call
@@ -278,7 +285,8 @@ def _run_react_turn(
     display: DisplayManager,
     console: Console,
     max_turns: int = 20,
-    token_budget: int = 8000,
+    token_budget: int | None = None,
+    spill_threshold: int | None = None,
     auto_approve: bool = False,
     confirmer: Any = None,
     workdir: Path | None = None,
@@ -312,6 +320,7 @@ def _run_react_turn(
         messages,
         max_turns=max_turns,
         token_budget=token_budget,
+        spill_threshold=spill_threshold,
         auto_approve=auto_approve,
         workdir=workdir,
         confirmer=confirmer,
@@ -352,9 +361,11 @@ def run_tui(backend: Any, registry: ToolRegistry, system_prompt: str,
 
     # --- 欢迎面板 ---
     model_name = getattr(backend, "model", "unknown")
+    token_budget = resolve_token_budget(model_name)
     console.print(Panel(
         "[bold blue]MiniOpenClaw[/bold blue]  [dim]交互模式[/dim]\n"
         f"  模型: [cyan]{model_name}[/cyan]   |   工具: [cyan]{len(registry)}[/cyan]\n"
+        f"  上下文预算: [cyan]{token_budget}[/cyan] tokens\n"
         "  Enter 发送  |  Ctrl+D 或 /quit 退出  |  /clear 清空历史\n"
         "  /image <path> 附加图片  |  Ctrl+C 中断正在生成的回复",
         title="Welcome",
@@ -467,6 +478,7 @@ def run_tui(backend: Any, registry: ToolRegistry, system_prompt: str,
         try:
             _run_react_turn(
                 backend, registry, messages, display, console,
+                token_budget=token_budget,
                 auto_approve=auto_approve,
                 confirmer=None if auto_approve else confirm_tool,
                 workdir=Path.cwd(),

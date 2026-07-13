@@ -16,18 +16,23 @@ from typing import Any
 from pathlib import Path
 
 from tools.base import ToolRegistry
+from agent.context import resolve_token_budget
 from agent.strategy import run_react_turns
 
 
 class AgentLoop:
     def __init__(self, backend: Any, registry: ToolRegistry, system_prompt: str,
-                 max_turns: int = 20, token_budget: int = 8000,
+                 max_turns: int = 20, token_budget: int | None = None,
+                 spill_threshold: int | None = None,
                  auto_approve: bool = False, workdir: Path | None = None):
         self.backend = backend
         self.registry = registry
         self.system_prompt = system_prompt
         self.max_turns = max_turns          # 防死循环：硬上限
-        self.token_budget = token_budget    # 触发 compaction 的 token 阈值
+        # 根据模型能力或环境变量决定触发 compaction 的 token 阈值
+        model_name = getattr(backend, "model", None)
+        self.token_budget = token_budget if token_budget is not None else resolve_token_budget(model_name)
+        self.spill_threshold = spill_threshold
         self.auto_approve = auto_approve
         self.workdir = (workdir or Path.cwd()).resolve()
 
@@ -52,6 +57,7 @@ class AgentLoop:
             messages,
             max_turns=self.max_turns,
             token_budget=self.token_budget,
+            spill_threshold=self.spill_threshold,
             auto_approve=self.auto_approve,
             workdir=self.workdir,
         )

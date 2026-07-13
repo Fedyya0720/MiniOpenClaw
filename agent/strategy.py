@@ -11,7 +11,13 @@ from pathlib import Path
 from typing import Any, Callable
 
 from tools.base import ToolRegistry
-from agent.context import estimate_tokens, maybe_compact, truncate_observation
+from agent.context import (
+    estimate_tokens,
+    maybe_compact,
+    resolve_token_budget,
+    spill_observation,
+    truncate_observation,
+)
 from agent.permissions import permission_observation
 
 
@@ -32,7 +38,8 @@ def run_react_turns(
     messages: list[dict[str, Any]],
     *,
     max_turns: int = 20,
-    token_budget: int = 8000,
+    token_budget: int | None = None,
+    spill_threshold: int | None = None,
     auto_approve: bool = False,
     workdir: Path | None = None,
     confirmer: Callable[[str, dict[str, Any], str], bool] | None = None,
@@ -42,14 +49,19 @@ def run_react_turns(
 
     Args:
         backend_call: Function that takes (messages, tools) and returns an
-            assistant dict with keys ``content`` and ``tool_calls``.
+            assistant dict with keys ``content``, ``tool_calls`` and optionally
+            ``usage`` (``{"prompt_tokens": int, ...}``).
         registry: Tool registry used for schemas and dispatch.
         messages: Mutable conversation history. The system message should
             already be present. This list is mutated in place.
         max_turns: Hard turn limit to prevent infinite loops.
-        token_budget: Token threshold that triggers context compaction.
+        token_budget: Token threshold that triggers context compaction. If
+            ``None``, resolved from environment / model defaults.
+        spill_threshold: Character threshold above which tool observations are
+            written to files under the workspace. ``None`` uses the environment
+            variable or a default.
         auto_approve: Whether to auto-approve confirm-class tools.
-        workdir: Working directory for path/permission checks.
+        workdir: Working directory for path/permission checks and spill files.
         confirmer: Callable ``(tool_name, args, reason) -> bool`` invoked when
             a tool requires user confirmation and ``auto_approve`` is False.
         callbacks: Optional presentation hooks.
@@ -59,14 +71,21 @@ def run_react_turns(
     """
     callbacks = callbacks or ReactCallbacks()
     workdir = (workdir or Path.cwd()).resolve()
+    token_budget = token_budget if token_budget is not None else resolve_token_budget()
 
-    for _ in range(max_turns):
-        if estimate_tokens(messages) > token_budget:
-            messages[:] = maybe_compact(messages, token_budget)
+    last_prompt_tokens = 0
+
+    for turn in range(max_turns):
+        estimated = estimate_tokens(messages)
+        if (last_prompt_tokens and last_prompt_tokens > token_budget) or estimated > token_budget:
+            messages[:] = maybe_compact(messages, token_budget, actual_tokens=last_prompt_tokens or estimated)
             if callbacks.on_context_compacted:
                 callbacks.on_context_compacted()
 
         assistant = backend_call(messages, tools=registry.schemas())
+        usage = assistant.get("usage") or {}
+        last_prompt_tokens = usage.get("prompt_tokens") or 0
+
         assistant_msg = {
             "role": "assistant",
             "content": assistant.get("content", ""),
@@ -83,7 +102,7 @@ def run_react_turns(
         if not tool_calls:
             return assistant.get("content", "")
 
-        for call in tool_calls:
+        for call_idx, call in enumerate(tool_calls):
             name = call["name"]
             arguments = call.get("arguments", {})
 
@@ -104,7 +123,10 @@ def run_react_turns(
                     except Exception as e:  # noqa: BLE001
                         obs = f"工具执行错误（{name}）：{e}\n请检查参数并重试。"
 
-            obs = truncate_observation(str(obs))
+            obs = spill_observation(
+                str(obs), name, workdir,
+                turn=turn, call_idx=call_idx, threshold=spill_threshold,
+            ) or truncate_observation(str(obs))
 
             if callbacks.on_tool_result:
                 callbacks.on_tool_result(name, obs)

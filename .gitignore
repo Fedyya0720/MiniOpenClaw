@@ -6,3 +6,4 @@ out-*/
 *.gguf
 .DS_Store
 .env
+.mini-openclaw/

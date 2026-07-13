@@ -133,8 +133,10 @@ class DeepSeekBackend:
             if not resp.is_success:
                 print(f"[DEBUG] HTTP {resp.status_code}: {resp.text[:2000]}")
             resp.raise_for_status()
-            msg = resp.json()["choices"][0]["message"]
-            return self._normalize(msg)
+            data = resp.json()
+            msg = data["choices"][0]["message"]
+            usage = data.get("usage") or {}
+            return self._normalize(msg, usage)
 
         return self._retry_request(_do_request)
 
@@ -163,12 +165,14 @@ class DeepSeekBackend:
 
         collected_content: list[str] = []
         tool_calls_acc: dict[int, dict[str, Any]] = {}  # index -> {id, name, args_str}
+        stream_usage: dict[str, Any] = {}
 
         def _do_stream():
             """构建并迭代 SSE 流（由 _retry_request 包装，失败时整体重试）。"""
-            nonlocal collected_content, tool_calls_acc
+            nonlocal collected_content, tool_calls_acc, stream_usage
             collected_content.clear()
             tool_calls_acc.clear()
+            stream_usage.clear()
 
             with self._client.stream(
                 "POST",
@@ -187,6 +191,11 @@ class DeepSeekBackend:
                         data = json.loads(data_str)
                     except json.JSONDecodeError:
                         continue
+
+                    # OpenAI-compatible providers may emit usage on the final chunk.
+                    if data.get("usage"):
+                        stream_usage.update(data["usage"])
+
                     choices = data.get("choices")
                     if not choices:
                         continue
@@ -240,7 +249,8 @@ class DeepSeekBackend:
                     "arguments": args,
                 })
             yield {"type": "done", "content": final_content,
-                   "tool_calls": final_tool_calls}
+                   "tool_calls": final_tool_calls,
+                   "usage": stream_usage}
 
         # 对初始连接/状态码重试；流中解析错误不重试（由上游 ReAct 循环兜底）
         def _connect_and_start_stream():
@@ -327,7 +337,7 @@ class DeepSeekBackend:
 
     # --- 把 OpenAI 返回归一化成内部格式 ---
     @staticmethod
-    def _normalize(msg: dict[str, Any]) -> dict[str, Any]:
+    def _normalize(msg: dict[str, Any], usage: dict[str, Any] | None = None) -> dict[str, Any]:
         tool_calls = []
         for tc in (msg.get("tool_calls") or []):
             fn = tc.get("function", {})
@@ -336,4 +346,9 @@ class DeepSeekBackend:
             except json.JSONDecodeError:
                 args = {}
             tool_calls.append({"id": tc.get("id"), "name": fn.get("name"), "arguments": args})
-        return {"role": "assistant", "content": msg.get("content") or "", "tool_calls": tool_calls}
+        return {
+            "role": "assistant",
+            "content": msg.get("content") or "",
+            "tool_calls": tool_calls,
+            "usage": usage or {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+        }
