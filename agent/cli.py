@@ -108,13 +108,25 @@ def main(argv: list[str] | None = None) -> int:
                    help="附加图片到用户消息（可多次指定），打通多模态输入通道")
     p.add_argument("--auto-approve", action="store_true",
                    help="自动批准需确认的工具调用（权限层 deny 仍会拦截）")
+    p.add_argument("--serial", action="store_true",
+                   help="PACS 串行模式：候选组合逐个安装、不并行、不复用约束（B3 消融对照基线）")
     args = p.parse_args(argv)
+
+    # Autonomous mode: MINIOPENCLAW_AUTO_APPROVE=1 is a persistent default for
+    # --auto-approve, so unattended PACS runs carry on without per-tool prompts.
+    # The explicit flag still wins; the deny net (protected paths, dangerous
+    # bash patterns) always applies — that's automated safety, not a prompt.
+    auto_approve = args.auto_approve or os.environ.get("MINIOPENCLAW_AUTO_APPROVE", "") == "1"
+    # PACS serial baseline flag, surfaced to the envpool layer via env var so
+    # the tool runtime (which doesn't see argparse) can read it.
+    if args.serial:
+        os.environ["MINIOPENCLAW_PACS_SERIAL"] = "1"
 
     # --- TUI 模式 ---
     if args.tui:
         from agent.tui import run_tui
         backend, reg, system_prompt = _build_agent_deps()
-        run_tui(backend, reg, system_prompt, auto_approve=args.auto_approve)
+        run_tui(backend, reg, system_prompt, auto_approve=auto_approve)
         return 0
 
     if args.selfcheck or not args.task:
@@ -124,7 +136,7 @@ def main(argv: list[str] | None = None) -> int:
     from agent.loop import AgentLoop
     backend, reg, system_prompt = _build_agent_deps()
     agent = AgentLoop(backend, reg, system_prompt,
-                      auto_approve=args.auto_approve, workdir=Path.cwd())
+                      auto_approve=auto_approve, workdir=Path.cwd())
     print(agent.run(args.task, images=args.image))
     return 0
 

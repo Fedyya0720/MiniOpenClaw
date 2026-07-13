@@ -10,6 +10,13 @@ READONLY = {"read", "grep", "glob"}
 WRITE = {"write", "edit"}
 EXEC = {"bash", "web_fetch"}
 
+# PACS resolver tools are pure compute (no fs/network/subprocess) → auto-allow like read-only.
+# Kept as a separate set so the policy reads clearly; handled in evaluate() as allow.
+PACS_READONLY = {"parse_deps", "generate_combinations", "parse_failure", "infer_constraints"}
+# PACS envpool tools create venvs + spawn pip subprocesses → treated like EXEC
+# (auto-run under --auto-approve / MINIOPENCLAW_AUTO_APPROVE, confirm otherwise).
+PACS_EXEC = {"env_create", "env_run", "env_status", "env_cleanup"}
+
 PROTECTED_PARTS = {".git", ".env", ".ssh", ".gnupg"}
 SENSITIVE_NAMES = {
     "id_rsa", "id_dsa", "id_ecdsa", "id_ed25519",
@@ -59,6 +66,13 @@ def evaluate(tool: str, args: dict[str, Any], workdir: Path) -> Decision:
             return Decision("deny", f"禁止搜索敏感路径模式：{pattern}")
         return Decision("allow", "只读工具自动放行")
 
+    if tool in PACS_READONLY:
+        # Pure-compute resolver tools: parse_deps / generate_combinations /
+        # parse_failure / infer_constraints. They only read project files we
+        # point them at; auto-allow (parse_failure reads install logs under the
+        # venv dir, parse_deps reads the project's dependency file).
+        return Decision("allow", "PACS 解析工具为纯计算，自动放行")
+
     if tool in WRITE:
         raw = str(args.get("path", ""))
         if not raw:
@@ -72,6 +86,12 @@ def evaluate(tool: str, args: dict[str, Any], workdir: Path) -> Decision:
 
     if tool in EXEC:
         return Decision("confirm", "执行或联网工具需要用户确认")
+
+    if tool in PACS_EXEC:
+        # envpool tools create venvs + spawn pip. They run in their own
+        # venv-scoped sandbox (envpool/sandbox.py), not the bash bwrap.
+        # Confirm by default; auto-approve under --auto-approve.
+        return Decision("confirm", "PACS 环境池工具将创建 venv 并执行 pip 安装（venv 级沙箱内）")
 
     return Decision("confirm", "未知或外部工具需要用户确认")
 
