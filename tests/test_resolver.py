@@ -90,6 +90,24 @@ class DependencyParserTest(unittest.TestCase):
         result = parse_pyproject(path)
         self.assertEqual([item.name for item in result], ["flask", "typing-extensions"])
 
+    def test_parenthesized_poetry_style_specifier(self):
+        path = self.root / "pyproject.toml"
+        path.write_text(
+            '[project]\ndependencies=["build (>=1.2,<2)", "cachecontrol[filecache] (>=0.14,<1)"]\n',
+            encoding="utf-8",
+        )
+        result = parse_pyproject(path)
+        self.assertEqual([item.name for item in result], ["build", "cachecontrol"])
+        self.assertEqual(result[0].specifier, ">=1.2,<2")
+        self.assertEqual(result[1].extras, ["filecache"])
+
+    def test_project_preserves_requires_python(self):
+        (self.root / "pyproject.toml").write_text(
+            '[project]\nrequires-python=">=3.12"\ndependencies=["demo>=1"]\n', encoding="utf-8"
+        )
+        parsed = parse_project(self.root)
+        self.assertEqual(parsed["metadata"]["requires_python"], ">=3.12")
+
     def test_environment_conda_hints_and_pip_subsection(self):
         path = self.root / "environment.yml"
         path.write_text(
@@ -697,6 +715,7 @@ class ConstraintGraphTest(unittest.TestCase):
             self.assertGreaterEqual(result["total_edges"], 3)
         finally:
             import tools.resolver_tools as rt
+            rt._constraint_graph.close()
             rt._constraint_graph = old_graph
 
 

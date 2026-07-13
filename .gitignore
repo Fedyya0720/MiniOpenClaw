@@ -6,4 +6,7 @@ out-*/
 *.gguf
 .DS_Store
 .env
+demo/pacs_demo/work/
+.mini-openclaw/
+.miniopenclaw_envs/
 .mini-openclaw/

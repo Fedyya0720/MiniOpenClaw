@@ -153,10 +153,10 @@ def _validate_argv(
     return command
 
 
-def _install_environment(env_path: Path) -> dict[str, str]:
+def _install_environment(env_path: Path, cache_dir: Path | None = None) -> dict[str, str]:
     """Keep pip caches, temp files, and user-site writes inside the managed venv."""
     home = env_path / ".home"
-    cache = env_path / ".cache" / "pip"
+    cache = cache_dir or (env_path / ".cache" / "pip")
     temporary = env_path / ".tmp"
     for path in (home, cache, temporary):
         path.mkdir(parents=True, exist_ok=True)
@@ -296,16 +296,23 @@ def _run_one(
     if info is None or isinstance(info, list):
         raise KeyError(f"环境不存在: {spec.env_id}")
     env_path = Path(info.path).resolve()
+    shared_cache = pool.workdir / ".mini-openclaw" / "pip-cache"
+    if shared_cache.is_symlink():
+        raise ValueError(f"共享 pip 缓存不能是符号链接: {shared_cache}")
+    shared_cache.mkdir(parents=True, exist_ok=True)
     if spec.packages is not None:
         _validate_install_arguments(spec.packages)
         command = pip_command(env_path, spec.packages)
     else:
         command = _validate_argv(spec.argv or [], env_path, pool.workdir, allow_test_commands)
     installer_argv = resource_runner_command(command, limits)
-    descriptor = build_sandbox(installer_argv, env_path, pool.workdir)
+    descriptor = build_sandbox(
+        installer_argv, env_path, pool.workdir,
+        extra_writable_paths=[shared_cache],
+    )
     durable_log_path = _pacs_log_path(pool, batch_id, index, spec)
     started = time.monotonic()
-    environment = _install_environment(env_path)
+    environment = _install_environment(env_path, shared_cache)
     attempts: list[tuple[str, Sequence[str], str, str, bool]] = []
     returncode, stdout, stderr, timed_out = _run_process(
         descriptor.argv,

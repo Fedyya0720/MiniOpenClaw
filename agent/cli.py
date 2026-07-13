@@ -80,25 +80,28 @@ def _wire_mcp(reg):
     """尝试连接 MCP echo server，将其工具并入注册表。失败不阻塞启动。"""
     from mcp.client import MCPClient, register_mcp_tools
     try:
-        mcp = MCPClient(["python", "mcp/echo_server.py"])
+        server = Path(__file__).resolve().parents[1] / "mcp" / "echo_server.py"
+        mcp = MCPClient([sys.executable, str(server)])
         mcp.start()
         register_mcp_tools(reg, mcp)
     except Exception as e:  # noqa
         print(f"[提示] MCP 未接入（{e}），仅用内置工具。")
 
 
-def _build_agent_deps():
+def _build_agent_deps(workdir: Path | None = None):
     """构造 CLI/TUI 共享的后端、注册表和系统提示词。"""
+    workspace = (workdir or Path.cwd()).resolve()
     reg = build_default_registry()
     _wire_mcp(reg)
     backend = _make_backend()
     skills = load_skills()
     system_prompt = inject_memory(
-        build_system_prompt(skills_catalog(skills)), Memory(Path.cwd() / "MEMORY.md")
+        build_system_prompt(skills_catalog(skills)), Memory(workspace / "MEMORY.md")
     )
-    system_prompt = ConstraintGraph.inject_constraints(
-        system_prompt, ConstraintGraph()
-    )
+    constraint_path = workspace / ".mini-openclaw" / "constraint-graph.db"
+    constraint_path.parent.mkdir(parents=True, exist_ok=True)
+    with ConstraintGraph(constraint_path) as graph:
+        system_prompt = ConstraintGraph.inject_constraints(system_prompt, graph)
     return backend, reg, system_prompt
 
 
@@ -114,7 +117,23 @@ def main(argv: list[str] | None = None) -> int:
                    help="自动批准需确认的工具调用（权限层 deny 仍会拦截）")
     p.add_argument("--serial", action="store_true",
                    help="PACS 串行模式：候选组合逐个安装、不并行、不复用约束（B3 消融对照基线）")
+    p.add_argument("-C", "--workdir", metavar="DIR",
+                   help="将 DIR 设为本次 CLI/TUI 会话的工作空间")
     args = p.parse_args(argv)
+
+    workspace = Path.cwd().resolve()
+    if args.workdir:
+        requested = Path(args.workdir).expanduser()
+        try:
+            workspace = requested.resolve(strict=True)
+        except OSError as exc:
+            p.error(f"工作目录不可用：{requested}（{exc}）")
+        if not workspace.is_dir():
+            p.error(f"工作目录不是文件夹：{workspace}")
+        try:
+            os.chdir(workspace)
+        except OSError as exc:
+            p.error(f"无法进入工作目录：{workspace}（{exc}）")
 
     # Autonomous mode: MINIOPENCLAW_AUTO_APPROVE=1 is a persistent default for
     # --auto-approve, so unattended PACS runs carry on without per-tool prompts.
@@ -129,8 +148,11 @@ def main(argv: list[str] | None = None) -> int:
     # --- TUI 模式 ---
     if args.tui:
         from agent.tui import run_tui
-        backend, reg, system_prompt = _build_agent_deps()
-        run_tui(backend, reg, system_prompt, auto_approve=auto_approve)
+        backend, reg, system_prompt = _build_agent_deps(workspace)
+        run_tui(
+            backend, reg, system_prompt,
+            auto_approve=auto_approve, workdir=workspace,
+        )
         return 0
 
     if args.selfcheck or not args.task:
@@ -138,9 +160,9 @@ def main(argv: list[str] | None = None) -> int:
 
     # 真正跑任务：优先用 DeepSeek API；没配 key 时回退到 FakeBackend（离线打通管道）
     from agent.loop import AgentLoop
-    backend, reg, system_prompt = _build_agent_deps()
+    backend, reg, system_prompt = _build_agent_deps(workspace)
     agent = AgentLoop(backend, reg, system_prompt,
-                      auto_approve=auto_approve, workdir=Path.cwd())
+                      auto_approve=auto_approve, workdir=workspace)
     print(agent.run(args.task, images=args.image))
     return 0
 

@@ -335,7 +335,7 @@ def _run_react_turn(
 # ---------------------------------------------------------------------------
 
 def run_tui(backend: Any, registry: ToolRegistry, system_prompt: str,
-            auto_approve: bool = False) -> None:
+            auto_approve: bool = False, workdir: Path | None = None) -> None:
     """启动交互式 TUI REPL。
 
     Args:
@@ -345,6 +345,7 @@ def run_tui(backend: Any, registry: ToolRegistry, system_prompt: str,
     """
     console = Console()
     display = DisplayManager(console)
+    workspace = (workdir or Path.cwd()).resolve()
 
     # --- 输入会话（带持久历史）---
     history_path = Path.home() / ".mini_openclaw_history"
@@ -367,6 +368,7 @@ def run_tui(backend: Any, registry: ToolRegistry, system_prompt: str,
     console.print(Panel(
         "[bold blue]MiniOpenClaw[/bold blue]  [dim]交互模式[/dim]\n"
         f"  模型: [cyan]{model_name}[/cyan]   |   工具: [cyan]{len(registry)}[/cyan]\n"
+        f"  工作空间: [cyan]{workspace}[/cyan]\n"
         f"  上下文预算: [cyan]{token_budget}[/cyan] tokens\n"
         "  Enter 发送  |  Ctrl+D 或 /quit 退出  |  /clear 清空历史\n"
         "  /image <path> 附加图片  |  Ctrl+C 中断正在生成的回复",
@@ -483,7 +485,7 @@ def run_tui(backend: Any, registry: ToolRegistry, system_prompt: str,
                 token_budget=token_budget,
                 auto_approve=auto_approve,
                 confirmer=None if auto_approve else confirm_tool,
-                workdir=Path.cwd(),
+                workdir=workspace,
             )
         except KeyboardInterrupt:
             console.print(Panel("已中断，回到提示符", border_style="yellow"))

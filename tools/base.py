@@ -92,4 +92,8 @@ def build_default_registry() -> ToolRegistry:
               infer_constraints_tool):
         reg.register(t)
 
+    # PACS high-level fast path: one deterministic tool call owns the loop.
+    from .pacs_tools import pacs_build_tool
+    reg.register(pacs_build_tool)
+
     return reg

@@ -50,6 +50,19 @@ agent/
 
 **Why:** `.env` loading avoids the "remember to export variables" friction for students. The FakeBackend fallback means the skeleton is testable without any API key — critical for Day 1.
 
+Use `--workdir` (or `-C`) to run the agent against another repository while keeping
+MiniOpenClaw's code and runtime in their original location:
+
+```bash
+PYTHONPATH=/path/to/MiniOpenClaw /path/to/python -m agent.cli \
+  --tui --workdir /path/to/target-project --auto-approve
+```
+
+The directory is resolved and validated before the backend or tools start, then becomes
+the process current directory and the shared permission, memory, trace, constraint, and
+PACS project boundary. An absolute `pacs_build` path is allowed only when it remains
+inside this workspace.
+
 ### 5. Persistent Memory (`memory.py`)
 
 **Decision:** Keep project memory in human-readable `MEMORY.md` and expose writes through

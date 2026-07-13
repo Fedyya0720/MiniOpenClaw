@@ -115,14 +115,16 @@ class DeepSeekBackend:
             payload["tools"] = tools           # OpenAI tools 格式，base.Tool.schema() 已生成
             payload["tool_choice"] = "auto"
 
-        # --- DEBUG: console-only outgoing payload preview (not persisted) ---
-        import json as _json
-        _serialized = _json.dumps(payload, ensure_ascii=False, indent=2)
-        print(f"\n[DEBUG] --- outgoing payload preview ({len(_serialized)} chars total) ---")
-        print(_serialized[:4000])
-        if len(_serialized) > 4000:
-            print(f"...[preview truncated, total {len(_serialized)} chars]")
-        print("[DEBUG] --- end outgoing payload preview ---\n")
+        debug = os.environ.get("MINIOPENCLAW_DEBUG") == "1"
+        if debug:
+            # Console-only preview, opt-in because tool schemas can be large.
+            import json as _json
+            _serialized = _json.dumps(payload, ensure_ascii=False, indent=2)
+            print(f"\n[DEBUG] --- outgoing payload preview ({len(_serialized)} chars total) ---")
+            print(_serialized[:4000])
+            if len(_serialized) > 4000:
+                print(f"...[preview truncated, total {len(_serialized)} chars]")
+            print("[DEBUG] --- end outgoing payload preview ---\n")
 
         def _do_request():
             resp = self._client.post(
@@ -130,7 +132,7 @@ class DeepSeekBackend:
                 headers={"Authorization": f"Bearer {self.api_key}"},
                 json=payload,
             )
-            if not resp.is_success:
+            if debug and not resp.is_success:
                 print(f"[DEBUG] HTTP {resp.status_code}: {resp.text[:2000]}")
             resp.raise_for_status()
             data = resp.json()

@@ -81,6 +81,10 @@ def parse_requirement(value: str, *, source: str = "") -> DepSpec | None:
         if not all(_NAME.fullmatch(item) for item in extras):
             return None
         rest = rest[closing + 1:].strip()
+    # PEP 508 permits the legacy parenthesized form used by Poetry projects,
+    # e.g. ``build (>=1.2,<2)``.
+    if rest.startswith("(") and rest.endswith(")"):
+        rest = rest[1:-1].strip()
     specifier = rest.replace(" ", "")
     if specifier and not all(_SPEC.fullmatch(part) for part in specifier.split(",") if part):
         return None
@@ -284,6 +288,10 @@ def parse_project(project_path: str | Path) -> dict[str, Any]:
         else:
             metadata["files"].append(str(file_path))
             if file_path.name == "pyproject.toml":
+                with file_path.open("rb") as handle:
+                    project_data = tomllib.load(handle).get("project", {})
+                if isinstance(project_data, dict) and project_data.get("requires-python"):
+                    metadata["requires_python"] = str(project_data["requires-python"])
                 dependencies.extend(parse_pyproject(file_path))
             elif file_path.name in {"environment.yml", "environment.yaml"}:
                 parsed, environment_metadata = parse_environment(file_path)

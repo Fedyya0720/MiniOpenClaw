@@ -19,7 +19,7 @@ from envpool.sandbox import SandboxDescriptor
 from tools.base import Tool, ToolRegistry
 
 
-def _direct_sandbox(command, env_path, workdir):
+def _direct_sandbox(command, env_path, workdir, **_kwargs):
     return SandboxDescriptor(list(command), "test-direct", False, True, [], [], "test mode")
 
 

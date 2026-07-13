@@ -19,7 +19,7 @@ from envpool.manager import EnvironmentPool
 from envpool.sandbox import ResourceLimits, SandboxDescriptor, build_sandbox
 
 
-def no_bwrap(command, env_path, workdir):
+def no_bwrap(command, env_path, workdir, **_kwargs):
     return SandboxDescriptor(list(command), "test-direct", False, True, [], [], "test mode")
 
 
@@ -144,9 +144,9 @@ class EnvironmentPoolTest(unittest.TestCase):
         ) for i, info in enumerate(environments)]
         seen = []
 
-        def record_runner(command, env_path, workdir):
+        def record_runner(command, env_path, workdir, **kwargs):
             seen.append(list(command))
-            return no_bwrap(command, env_path, workdir)
+            return no_bwrap(command, env_path, workdir, **kwargs)
 
         with mock.patch("envpool.install.build_sandbox", side_effect=record_runner):
             started = time.monotonic()
@@ -316,9 +316,9 @@ class EnvironmentPoolTest(unittest.TestCase):
     def test_registry_has_phase1_names(self):
         from tools.base import build_default_registry
         registry = build_default_registry()
-        self.assertEqual(len(registry), 17)
+        self.assertEqual(len(registry), 18)
         for name in ("env_create", "env_run", "env_status", "env_cleanup", "parse_deps",
-                     "generate_combinations", "parse_failure", "infer_constraints"):
+                     "generate_combinations", "parse_failure", "infer_constraints", "pacs_build"):
             self.assertIn(name, registry.names())
 
 

@@ -20,7 +20,7 @@ PACS_PATH_ARGUMENTS = {
 }
 # PACS envpool tools create venvs + spawn pip subprocesses → treated like EXEC
 # (auto-run under --auto-approve / MINIOPENCLAW_AUTO_APPROVE, confirm otherwise).
-PACS_EXEC = {"env_create", "env_run", "env_status", "env_cleanup"}
+PACS_EXEC = {"env_create", "env_run", "env_status", "env_cleanup", "pacs_build"}
 
 PROTECTED_PARTS = {".git", ".env", ".ssh", ".gnupg"}
 SENSITIVE_NAMES = {
@@ -97,6 +97,14 @@ def evaluate(tool: str, args: dict[str, Any], workdir: Path) -> Decision:
         return Decision("confirm", "执行或联网工具需要用户确认")
 
     if tool in PACS_EXEC:
+        if tool == "pacs_build":
+            raw_project = args.get("project_path")
+            if raw_project:
+                project = _resolved_path(str(raw_project), root)
+                if not _is_within(project, root):
+                    return Decision("deny", f"PACS 项目路径超出工作目录：{project}")
+                if _is_sensitive(project):
+                    return Decision("deny", f"禁止 PACS 访问敏感路径：{project}")
         supplied_workdir = args.get("workdir")
         if supplied_workdir is not None:
             target = _resolved_path(str(supplied_workdir), root)

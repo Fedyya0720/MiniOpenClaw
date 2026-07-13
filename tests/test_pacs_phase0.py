@@ -3,6 +3,7 @@
 Run: python -m unittest tests.test_pacs_phase0
 """
 import os
+import tempfile
 import unittest
 from unittest import mock
 
@@ -23,7 +24,8 @@ class PackageImportTest(unittest.TestCase):
         from tools.base import build_default_registry
         reg = build_default_registry()
         # Phase 1-3 registers seven PACS tools on top of the 9 baseline tools.
-        self.assertEqual(len(reg), 17)
+        self.assertEqual(len(reg), 18)
+        self.assertIn("pacs_build", reg.names())
 
 
 class PacsPermissionClassificationTest(unittest.TestCase):
@@ -97,6 +99,28 @@ class AutonomousModeTest(unittest.TestCase):
     def test_serial_flag_sets_env_var(self):
         captured = self._run_cli(["--serial", "configure project"])
         self.assertEqual(captured["serial_env"], "1")
+
+    def test_workdir_becomes_agent_workspace_and_process_cwd(self):
+        original = Path.cwd()
+        try:
+            with tempfile.TemporaryDirectory() as directory:
+                target = Path(directory).resolve()
+                captured = self._run_cli(["--workdir", str(target), "configure project"])
+                self.assertEqual(captured["workdir"], target)
+                self.assertEqual(Path.cwd(), target)
+        finally:
+            os.chdir(original)
+
+    def test_invalid_workdir_fails_before_agent_start(self):
+        import agent.cli as cli
+
+        missing = Path(tempfile.gettempdir()) / "miniopenclaw-missing-workdir"
+        with mock.patch.object(cli, "_build_agent_deps") as build, \
+             mock.patch("sys.stderr"), \
+             self.assertRaises(SystemExit) as raised:
+            cli.main(["--workdir", str(missing), "configure project"])
+        self.assertEqual(raised.exception.code, 2)
+        build.assert_not_called()
 
 
 if __name__ == "__main__":

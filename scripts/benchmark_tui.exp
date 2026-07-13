@@ -1,0 +1,64 @@
+#!/usr/bin/expect -f
+
+# Drive one real TUI turn in a PTY and report submit-to-final-prompt wall time.
+if {$argc != 3} {
+    puts stderr "usage: benchmark_tui.exp PROJECT PROMPT LOG"
+    exit 64
+}
+
+set project [file normalize [lindex $argv 0]]
+set user_prompt [lindex $argv 1]
+set log_path [lindex $argv 2]
+set timeout 900
+
+if {![info exists env(BENCH_PYTHON)] || ![info exists env(BENCH_REPO)]} {
+    puts stderr "BENCH_PYTHON and BENCH_REPO are required"
+    exit 64
+}
+
+set env(PYTHONPATH) $env(BENCH_REPO)
+if {[info exists env(BENCH_HOME)]} {
+    set env(HOME) $env(BENCH_HOME)
+}
+
+log_file -noappend $log_path
+log_user 0
+spawn -noecho $env(BENCH_PYTHON) -m agent.cli --tui --auto-approve --workdir $project
+
+expect {
+    -re {\r?\n> } {}
+    timeout {
+        puts "BENCHMARK_STATUS=start-timeout"
+        exit 124
+    }
+    eof {
+        puts "BENCHMARK_STATUS=start-eof"
+        exit 125
+    }
+}
+
+set started [clock milliseconds]
+send -- "$user_prompt\r"
+expect {
+    -re {\r?\n> } {
+        set elapsed [expr {([clock milliseconds] - $started) / 1000.0}]
+        puts "BENCHMARK_STATUS=completed"
+        puts "BENCHMARK_SECONDS=$elapsed"
+        send -- "/quit\r"
+        expect eof
+        exit 0
+    }
+    timeout {
+        set elapsed [expr {([clock milliseconds] - $started) / 1000.0}]
+        puts "BENCHMARK_STATUS=turn-timeout"
+        puts "BENCHMARK_SECONDS=$elapsed"
+        send -- "\003"
+        exit 124
+    }
+    eof {
+        set elapsed [expr {([clock milliseconds] - $started) / 1000.0}]
+        puts "BENCHMARK_STATUS=turn-eof"
+        puts "BENCHMARK_SECONDS=$elapsed"
+        exit 125
+    }
+}

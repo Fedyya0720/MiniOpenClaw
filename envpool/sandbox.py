@@ -101,6 +101,7 @@ def build_sandbox(
     workdir: str | Path,
     *,
     bwrap_executable: str | None = None,
+    extra_writable_paths: Sequence[str | Path] = (),
 ) -> SandboxDescriptor:
     """Wrap an argv command in bubblewrap when available.
 
@@ -116,6 +117,12 @@ def build_sandbox(
         raise ValueError("argv 包含 NUL 字节")
     venv = Path(env_path).expanduser().resolve()
     project = Path(workdir).expanduser().resolve()
+    writable: list[Path] = []
+    for raw in extra_writable_paths:
+        path = Path(raw).expanduser().resolve()
+        if path == project or not path.is_relative_to(project):
+            raise ValueError(f"额外可写路径必须位于项目工作目录内: {path}")
+        writable.append(path)
     bwrap, probe_warning = _resolve_bwrap(bwrap_executable)
     if bwrap:
         wrapped = [
@@ -124,6 +131,7 @@ def build_sandbox(
             "--ro-bind", "/", "/",
             "--ro-bind", str(project), str(project),
             "--bind", str(venv), str(venv),
+            *[part for path in writable for part in ("--bind", str(path), str(path))],
             "--proc", "/proc",
             "--dev", "/dev",
             "--chdir", str(project),
@@ -135,7 +143,7 @@ def build_sandbox(
             kind="bubblewrap",
             filesystem_isolated=True,
             network_enabled=True,
-            writable_paths=[str(venv)],
+            writable_paths=[str(venv), *[str(path) for path in writable]],
             readable_paths=["/", str(project)],
             warning=None,
         )
