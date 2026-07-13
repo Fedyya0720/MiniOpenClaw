@@ -112,6 +112,8 @@ def main(argv: list[str] | None = None) -> int:
                    help="附加图片到用户消息（可多次指定），打通多模态输入通道")
     p.add_argument("--auto-approve", action="store_true",
                    help="自动批准需确认的工具调用（权限层 deny 仍会拦截）")
+    p.add_argument("--max-turns", "-m", type=int, default=None,
+                   help="最大推理轮数（默认 20）")
     p.add_argument("--serial", action="store_true",
                    help="PACS 串行模式：候选组合逐个安装、不并行、不复用约束（B3 消融对照基线）")
     args = p.parse_args(argv)
@@ -130,7 +132,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.tui:
         from agent.tui import run_tui
         backend, reg, system_prompt = _build_agent_deps()
-        run_tui(backend, reg, system_prompt, auto_approve=auto_approve)
+        run_tui(backend, reg, system_prompt, auto_approve=auto_approve,
+                max_turns=args.max_turns or 20)
         return 0
 
     if args.selfcheck or not args.task:
@@ -139,7 +142,9 @@ def main(argv: list[str] | None = None) -> int:
     # 真正跑任务：优先用 DeepSeek API；没配 key 时回退到 FakeBackend（离线打通管道）
     from agent.loop import AgentLoop
     backend, reg, system_prompt = _build_agent_deps()
+    max_turns = args.max_turns or 20
     agent = AgentLoop(backend, reg, system_prompt,
+                      max_turns=max_turns,
                       auto_approve=auto_approve, workdir=Path.cwd())
     print(agent.run(args.task, images=args.image))
     return 0
