@@ -135,8 +135,9 @@ class EnvironmentPool:
         env_id: str | None = None,
         python_executable: str | None = None,
         timeout: float = 120.0,
+        backend: str = "venv",
     ) -> EnvironmentInfo:
-        """Create one venv and atomically publish its ``env.json`` manifest."""
+        """Create one environment and atomically publish its ``env.json`` manifest."""
         if not isinstance(label, str) or not label.strip():
             raise ValueError("label 不能为空")
         self._ensure_root()
@@ -144,21 +145,29 @@ class EnvironmentPool:
         path = self._path_for(chosen_id)
         if path.exists():
             raise FileExistsError(f"环境已存在: {chosen_id}")
-        executable, warning = self._find_python(python_executable)
+        warning = None
         try:
-            subprocess.run(
-                [executable, "-m", "venv", str(path)],
-                cwd=str(self.workdir),
-                check=True,
-                capture_output=True,
-                text=True,
-                timeout=timeout,
-            )
+            # Resolve and invoke the appropriate backend.
+            if backend == "conda":
+                from .backends import CondaBackend as backend_cls
+                backend_cls.create(path, python_executable, timeout=timeout)
+                python = str(backend_cls.python_path(path))
+            else:
+                executable, warning = self._find_python(python_executable)
+                subprocess.run(
+                    [executable, "-m", "venv", str(path)],
+                    cwd=str(self.workdir),
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout,
+                )
+                python = str(self.python_path(path))
             info = EnvironmentInfo(
                 env_id=chosen_id,
                 label=label.strip(),
                 path=str(path),
-                python=str(self.python_path(path)),
+                python=python,
                 requested_python=python_executable,
                 created_at=datetime.now(timezone.utc).isoformat(),
                 warning=warning,

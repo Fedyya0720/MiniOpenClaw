@@ -1,4 +1,4 @@
-"""PACS resolver tools — dependency parsing and version-combination generation."""
+"""PACS resolver tools — dependency parsing, combination generation, failure analysis."""
 from __future__ import annotations
 
 import json
@@ -6,6 +6,7 @@ from pathlib import Path
 
 from resolver.combinations import generate_combinations as _gen_combos
 from resolver.dep_parser import parse_project
+from resolver.failure_parser import parse_failure_file
 from tools.base import Tool
 
 
@@ -34,6 +35,21 @@ def _combinations(
         )
         return json.dumps({"ok": True, **result}, ensure_ascii=False, sort_keys=True,
                           default=str)
+    except Exception as exc:
+        return json.dumps(
+            {"ok": False, "error": str(exc), "type": type(exc).__name__},
+            ensure_ascii=False, sort_keys=True,
+        )
+
+
+def _parse_failure(log_path: str = "") -> str:
+    """Read an install log and emit structured failure entries."""
+    try:
+        entries = parse_failure_file(log_path)
+        return json.dumps(
+            {"ok": True, "entries": entries, "count": len(entries)},
+            ensure_ascii=False, sort_keys=True,
+        )
     except Exception as exc:
         return json.dumps(
             {"ok": False, "error": str(exc), "type": type(exc).__name__},
@@ -80,4 +96,26 @@ generate_combinations_tool = Tool(
         "required": ["dependencies"],
     },
     run=_combinations,
+)
+
+
+parse_failure_tool = Tool(
+    name="parse_failure",
+    description=(
+        "读取安装日志并返回结构化失败分析。"
+        "分类 15+ 种 pip 失败模式（版本冲突、平台不匹配、缺少系统库/头文件、"
+        "wheel 不可用、SSL/网络错误、编译器缺失、超时等），"
+        "每项带 error_type、confidence、constraints 和可选的修复 hint。"
+    ),
+    parameters={
+        "type": "object",
+        "properties": {
+            "log_path": {
+                "type": "string",
+                "description": "env_run 返回的安装日志的绝对或相对路径",
+            },
+        },
+        "required": ["log_path"],
+    },
+    run=_parse_failure,
 )

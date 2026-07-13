@@ -19,9 +19,11 @@ def _pool(workdir: str | None) -> EnvironmentPool:
 
 
 def _create(label: str, env_id: str | None = None, python: str | None = None,
-            workdir: str | None = None) -> str:
+            backend: str = "venv", workdir: str | None = None) -> str:
     try:
-        info = _pool(workdir).create(label, env_id=env_id, python_executable=python)
+        info = _pool(workdir).create(
+            label, env_id=env_id, python_executable=python, backend=backend,
+        )
         return _json({"ok": True, "environment": info.to_dict()})
     except Exception as exc:
         return _json({"ok": False, "error": str(exc), "type": type(exc).__name__})
@@ -66,10 +68,12 @@ _WORKDIR = {
 
 env_create_tool = Tool(
     name="env_create",
-    description="创建隔离 Python 虚拟环境并写入可重启恢复的 manifest。",
+    description="创建隔离 Python 环境（venv 或 conda）并写入可重启恢复的 manifest。",
     parameters={"type": "object", "properties": {
         "label": {"type": "string"}, "env_id": {"type": "string"},
-        "python": {"type": "string"}, "workdir": _WORKDIR,
+        "python": {"type": "string"},
+        "backend": {"type": "string", "description": "venv（默认）或 conda；conda 需事先安装"},
+        "workdir": _WORKDIR,
     }, "required": ["label"]},
     run=_create,
 )

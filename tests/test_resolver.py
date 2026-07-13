@@ -275,5 +275,204 @@ class CombinationsTest(unittest.TestCase):
         self.assertIn("version_sources", parsed)
 
 
+class FailureParserTest(unittest.TestCase):
+    def test_version_conflict_extracts_constraint_pairs(self):
+        from resolver.failure_parser import parse_failure
+        log = (
+            "ERROR: Cannot install numpy==2.0.0 and torch==2.5.0 because these"
+            " package versions have conflicting dependencies.\n"
+            "The conflict is caused by:\n"
+            "    torch 2.5.0 depends on numpy>=2.0,<2.1\n"
+            "    numpy 2.0.0 depends on torch_core>=2\n"
+        )
+        entries = parse_failure(stderr=log)
+        self.assertGreaterEqual(len(entries), 1)
+        self.assertEqual(entries[0]["error_type"], "version_conflict")
+        self.assertTrue(any("numpy" in str(c) for c in entries[0]["constraints"]))
+
+    def test_platform_mismatch_detected(self):
+        from resolver.failure_parser import parse_failure
+        log = "ERROR: torch-2.5.0-cp311-cp311-manylinux_2_17_x86_64.whl is not a supported wheel on this platform."
+        entries = parse_failure(stderr=log)
+        self.assertGreaterEqual(len(entries), 1)
+        self.assertEqual(entries[0]["error_type"], "platform_mismatch")
+
+    def test_python_requires_detected(self):
+        from resolver.failure_parser import parse_failure
+        log = "ERROR: Package 'numpy' requires a different Python: 3.10 not in '>=3.12'"
+        entries = parse_failure(stderr=log)
+        self.assertGreaterEqual(len(entries), 1)
+        self.assertEqual(entries[0]["error_type"], "python_requires")
+        self.assertIn("numpy", entries[0]["summary"])
+
+    def test_compiler_missing_detected(self):
+        from resolver.failure_parser import parse_failure
+        log = "error: command 'gcc' failed: No such file or directory\ngcc: command not found\n"
+        entries = parse_failure(stderr=log)
+        self.assertGreaterEqual(len(entries), 1)
+        self.assertEqual(entries[0]["error_type"], "build_tool_missing")
+
+    def test_system_dep_missing_detects_header(self):
+        from resolver.failure_parser import parse_failure
+        log = (
+            "running build_ext\n"
+            "building '_cffi_backend' extension\n"
+            "fatal error: ffi.h: No such file or directory\n"
+            " #include <ffi.h>\n"
+            "          ^~~~~~~~\n"
+            "compilation terminated.\n"
+            "error: command '/usr/bin/gcc' failed with exit code 1"
+        )
+        entries = parse_failure(stderr=log)
+        self.assertGreaterEqual(len(entries), 1)
+        self.assertEqual(entries[0]["error_type"], "system_dep_missing")
+        self.assertIn("apt install libffi-dev", entries[0]["hint"])
+
+    def test_system_dep_missing_detects_cuda(self):
+        from resolver.failure_parser import parse_failure
+        log = "RuntimeError: CUDA not found. Please ensure CUDA toolkit is installed."
+        entries = parse_failure(stderr=log)
+        self.assertGreaterEqual(len(entries), 1)
+        self.assertEqual(entries[0]["error_type"], "system_dep_missing")
+
+    def test_yanked_version_detected(self):
+        from resolver.failure_parser import parse_failure
+        log = "WARNING: The package 1.0.0rc7 is yanked. Reason: critical security bug"
+        entries = parse_failure(stderr=log)
+        self.assertGreaterEqual(len(entries), 1)
+        self.assertEqual(entries[0]["error_type"], "yanked_version")
+
+    def test_no_matching_distribution_detected(self):
+        from resolver.failure_parser import parse_failure
+        log = (
+            "ERROR: Could not find a version that satisfies the requirement"
+            " no-such-package==2.0.0\n"
+            "ERROR: No matching distribution found for no-such-package\n"
+        )
+        entries = parse_failure(stderr=log)
+        self.assertGreaterEqual(len(entries), 1)
+        error_types = {e["error_type"] for e in entries}
+        self.assertIn("no_matching_distribution", error_types)
+
+    def test_network_ssl_error_detected(self):
+        from resolver.failure_parser import parse_failure
+        log = "SSLError(1, '[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate')"
+        entries = parse_failure(stderr=log)
+        self.assertGreaterEqual(len(entries), 1)
+        self.assertEqual(entries[0]["error_type"], "network_error")
+
+    def test_disk_full_detected(self):
+        from resolver.failure_parser import parse_failure
+        log = "OSError: [Errno 28] No space left on device"
+        entries = parse_failure(stderr=log)
+        self.assertEqual(entries[0]["error_type"], "disk_full")
+
+    def test_permission_denied_detected(self):
+        from resolver.failure_parser import parse_failure
+        log = "PermissionError: [Errno 13] Permission denied: '/usr/local/lib/python3.10'"
+        entries = parse_failure(stderr=log)
+        self.assertEqual(entries[0]["error_type"], "permission_denied")
+
+    def test_timeout_detected(self):
+        from resolver.failure_parser import parse_failure
+        log = "[TIMEOUT after 300s]\nThe command timed out during pip install."
+        entries = parse_failure(stderr=log)
+        self.assertEqual(entries[0]["error_type"], "timeout")
+
+    def test_build_wheel_fallback(self):
+        from resolver.failure_parser import parse_failure
+        log = "error: subprocess-exited-with-error\nERROR: Failed building wheel for mypkg"
+        entries = parse_failure(stderr=log)
+        self.assertGreaterEqual(len(entries), 1)
+        self.assertEqual(entries[0]["error_type"], "build_wheel")
+
+    def test_metadata_conflict_detected(self):
+        from resolver.failure_parser import parse_failure
+        log = (
+            "ERROR: Requested numpy==1.24.0 from ... has inconsistent version:"
+            " filename has '1.24.0', but metadata has '1.24.0+local'"
+        )
+        entries = parse_failure(stderr=log)
+        self.assertGreaterEqual(len(entries), 1)
+        self.assertEqual(entries[0]["error_type"], "metadata_conflict")
+
+    def test_empty_log_returns_unknown(self):
+        from resolver.failure_parser import parse_failure
+        entries = parse_failure(stderr="  \n  ")
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0]["error_type"], "unknown")
+
+    def test_unrecognised_log_returns_unknown(self):
+        from resolver.failure_parser import parse_failure
+        entries = parse_failure(stderr="some random text without any known error patterns")
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0]["error_type"], "unknown")
+
+    def test_tool_reads_log_file_and_returns_structured_json(self):
+        import tempfile
+        from pathlib import Path
+        from tools.resolver_tools import parse_failure_tool
+        log_text = (
+            "ERROR: Cannot install numpy==1.26.0 and requests==2.28.0 because"
+            " these package versions have conflicting dependencies.\n"
+            "The conflict is caused by:\n"
+            "    numpy 1.26.0 depends on requests>=2.30\n"
+            "    requests 2.28.0 depends on ...\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = Path(tmp) / "install.log"
+            log_path.write_text(log_text, encoding="utf-8")
+            result = json.loads(parse_failure_tool.run(log_path=str(log_path)))
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["entries"][0]["error_type"], "version_conflict")
+
+
+class BackendTest(unittest.TestCase):
+    def test_venv_backend_always_available(self):
+        from envpool.backends import VenvBackend
+        self.assertTrue(VenvBackend.probe())
+
+    def test_backend_resolution_falls_back_to_venv(self):
+        from envpool.backends import resolve_backend
+        _, name = resolve_backend(None)
+        self.assertEqual(name, "venv")
+        _, name = resolve_backend("venv")
+        self.assertEqual(name, "venv")
+        _, name = resolve_backend("nonsense")
+        self.assertEqual(name, "venv")
+
+    def test_conda_backend_resolves(self):
+        from envpool.backends import CondaBackend, resolve_backend
+        backend, name = resolve_backend("conda")
+        self.assertEqual(name, "conda")
+        self.assertIs(backend, CondaBackend)
+
+    def test_available_backends_has_both_entries(self):
+        from envpool.backends import available_backends
+        result = available_backends()
+        self.assertEqual(len(result), 2)
+        self.assertEqual({b["name"] for b in result}, {"venv", "conda"})
+        self.assertTrue(result[0]["available"])  # venv always available
+
+    def test_conda_backend_create_requires_conda_installed(self):
+        from envpool.backends import CondaBackend
+        if not CondaBackend.probe():
+            with self.assertRaises(RuntimeError):
+                CondaBackend.executable()
+        else:
+            self.assertIsInstance(CondaBackend.executable(), str)
+
+    def test_env_create_tool_accepts_backend_parameter(self):
+        from tools.env_tools import env_create_tool
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as tmp:
+            result = json.loads(env_create_tool.run(
+                label="test-backend", backend="venv", workdir=tmp,
+            ))
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["environment"]["label"], "test-backend")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -79,13 +79,15 @@ def build_default_registry() -> ToolRegistry:
     from .memory import remember_tool
     reg.register(remember_tool)
 
-    # PACS Phase 1-2: 环境池 + 依赖解析 + 版本组合生成
+    # PACS Phase 1-3: 环境池 + 依赖解析 + 版本组合 + 失败解析
     from .env_tools import (
         env_create_tool, env_run_tool, env_status_tool, env_cleanup_tool,
     )
-    from .resolver_tools import parse_deps_tool, generate_combinations_tool
+    from .resolver_tools import (
+        parse_deps_tool, generate_combinations_tool, parse_failure_tool,
+    )
     for t in (env_create_tool, env_run_tool, env_status_tool, env_cleanup_tool,
-              parse_deps_tool, generate_combinations_tool):
+              parse_deps_tool, generate_combinations_tool, parse_failure_tool):
         reg.register(t)
 
     return reg
