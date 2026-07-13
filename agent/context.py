@@ -29,7 +29,8 @@ KNOWN_CONTEXT_WINDOWS: dict[str, int] = {
 # 给 completion / 系统开销预留 10% 安全边际。
 _CONTEXT_SAFETY_MARGIN = 0.9
 
-# 最终安全网：即使 spill 逻辑被绕过，单条 observation 也不允许超过 100 万字符。
+# Final fallback for callers that explicitly request truncation. Normal spill
+# artifacts are deliberately never capped: they are durable evidence, not context.
 _EMERGENCY_OBSERVATION_CAP = 1_000_000
 
 # 默认 spill 阈值：超过该字符数就写入文件。
@@ -144,11 +145,23 @@ def truncate_observation(text: str, max_chars: int = _EMERGENCY_OBSERVATION_CAP)
 
 
 def _spill_dir(workdir: Path) -> Path:
-    """返回 spill 根目录（工作区内的隐藏目录）。"""
+    """Return a validated spill root beneath the workspace.
+
+    A custom directory is allowed only when it resolves inside ``workdir``;
+    invalid configuration falls back to the normal project-local location.
+    """
+    default = workdir / ".mini-openclaw" / "spill"
     custom = os.getenv("MINIOPENCLAW_SPILL_DIR")
-    if custom:
-        return workdir / custom
-    return workdir / ".mini-openclaw" / "spill"
+    if not custom:
+        return default
+    candidate = Path(custom).expanduser()
+    if not candidate.is_absolute():
+        candidate = workdir / candidate
+    try:
+        candidate.resolve(strict=False).relative_to(workdir.resolve())
+    except (OSError, ValueError):
+        return default
+    return candidate
 
 
 def _make_spill_filename(tool_name: str, turn: int | None, call_idx: int | None) -> str:
@@ -179,21 +192,45 @@ def _extract_stderr(text: str) -> list[str]:
     return [line for line in m.group(1).splitlines() if line.strip()]
 
 
-def _summarize_spilled(text: str, tool_name: str) -> str:
-    """为已写入文件的长输出生成规则摘要。"""
-    lines = [line for line in text.splitlines() if line.strip()]
-    total_lines = len(text.splitlines())
-    total_chars = len(text)
-    total_bytes = len(text.encode("utf-8"))
+def _summarize_spilled(
+    original: str, stored: str, tool_name: str, *, redacted: bool, sensitive_retention: bool,
+) -> str:
+    """Summarize a spill without reintroducing sensitive content into context."""
+    # Import lazily: trace imports no context code, and context remains usable on its own.
+    from agent.trace import content_metadata
+
+    metadata = content_metadata(original, stored)
+    lines = [line for line in stored.splitlines() if line.strip()]
+    total_lines = len(original.splitlines())
+    stored_lines = len(stored.splitlines())
 
     parts = [f"- 工具：{tool_name}"]
-    parts.append(f"- 共 {total_lines} 行，{total_chars} 字符，{total_bytes} 字节")
+    parts.append(
+        "- 原始内容：{original_chars} 字符，{original_utf8_bytes} 字节，SHA-256: {original_sha256}".format(
+            **metadata
+        )
+    )
+    parts.append(
+        "- 存储内容：{stored_chars} 字符，{stored_utf8_bytes} 字节，SHA-256: {stored_sha256}".format(
+            **metadata
+        )
+    )
+    parts.append(
+        f"- 原始 {total_lines} 行；存储 {stored_lines} 行；已脱敏：{'是' if redacted else '否'}"
+    )
+    if sensitive_retention:
+        parts.append("- 敏感内容保留：是（MINIOPENCLAW_TRACE_SENSITIVE=1；摘要不展示其内容）")
 
-    returncode = _extract_returncode(text)
+    returncode = _extract_returncode(stored)
     if returncode is not None:
         parts.append(f"- 退出码：{returncode}")
 
-    stderr_lines = _extract_stderr(text)
+    # A forensic spill can retain the original data on disk, but context must
+    # never replay it.  Redacted output can be previewed safely.
+    if redacted or sensitive_retention:
+        return "\n".join(parts)
+
+    stderr_lines = _extract_stderr(stored)
     if stderr_lines:
         parts.append("- stderr 输出：")
         for line in stderr_lines[:5]:
@@ -201,7 +238,6 @@ def _summarize_spilled(text: str, tool_name: str) -> str:
         if len(stderr_lines) > 5:
             parts.append(f"    ...（stderr 共 {len(stderr_lines)} 行）")
 
-    # 错误 / 异常关键字行
     error_re = re.compile(r"error|exception|traceback|failed|fatal", re.IGNORECASE)
     error_lines = [line for line in lines if error_re.search(line)]
     if error_lines:
@@ -211,7 +247,6 @@ def _summarize_spilled(text: str, tool_name: str) -> str:
         if len(error_lines) > 5:
             parts.append(f"    ...（共 {len(error_lines)} 处）")
 
-    # 头尾片段
     if len(lines) > 10:
         parts.append("- 开头 5 行：")
         for line in lines[:5]:
@@ -235,15 +270,11 @@ def spill_observation(
     call_idx: int | None = None,
     threshold: int | None = None,
 ) -> str:
-    """如果工具输出过长，将其写入文件并返回文件路径 + 摘要。
+    """Persist a large observation under the workspace and return a safe pointer.
 
-    参数：
-      text: 原始工具输出。
-      tool_name: 工具名，用于文件名和摘要。
-      workdir: 工作目录，spill 文件会写在该目录下。
-      turn: 当前轮次编号，用于文件名。
-      call_idx: 当前工具调用在轮次中的序号，用于文件名。
-      threshold: 触发 spill 的字符阈值；None 则读取环境变量或默认值。
+    By default the persisted form follows ``agent.trace`` redaction.  Set
+    ``MINIOPENCLAW_TRACE_SENSITIVE=1`` only for an intentional forensic case;
+    even then, the context summary never previews sensitive content.
     """
     text = str(text)
     if threshold is None:
@@ -255,12 +286,24 @@ def spill_observation(
     if len(text) <= threshold:
         return text
 
-    # 最终安全网：超大规模输出仍先截断到应急上限再写入文件。
-    text = truncate_observation(text, _EMERGENCY_OBSERVATION_CAP)
+    # Lazy imports avoid a trace/context import cycle while guaranteeing that
+    # trace artifacts and generic spills share one default redaction policy.
+    from agent.trace import redact_text, sensitive_retention_enabled
+
+    stored, sensitive = redact_text(text)
+    retained = sensitive_retention_enabled()
+    if sensitive and retained:
+        stored = text
 
     spill_root = _spill_dir(workdir)
     filename = _make_spill_filename(tool_name, turn, call_idx)
-    relative_path = str(Path(".") / spill_root.relative_to(workdir) / filename)
+    try:
+        relative_root = spill_root.resolve(strict=False).relative_to(workdir.resolve())
+    except (OSError, ValueError):
+        # Defensive fallback if a path changes between validation and use.
+        spill_root = workdir / ".mini-openclaw" / "spill"
+        relative_root = spill_root.relative_to(workdir)
+    relative_path = str(Path(".") / relative_root / filename)
     resolved = resolve_write_path(relative_path, workdir)
     if resolved.startswith("⚠️") or resolved.startswith("错误："):
         # 沙箱阻止写入：回退到截断
@@ -269,11 +312,24 @@ def spill_observation(
     abs_path = Path(resolved)
     try:
         abs_path.parent.mkdir(parents=True, exist_ok=True)
-        abs_path.write_text(text, encoding="utf-8")
+        for parent in (workdir / ".mini-openclaw", abs_path.parent):
+            try:
+                parent.chmod(0o700)
+            except OSError:
+                pass
+        abs_path.write_text(stored, encoding="utf-8")
+        try:
+            abs_path.chmod(0o600)
+        except OSError:
+            pass
     except OSError:
-        return truncate_observation(text, threshold)
+        return truncate_observation(stored, threshold)
 
-    summary = _summarize_spilled(text, tool_name)
+    summary = _summarize_spilled(
+        text, stored, tool_name,
+        redacted=bool(sensitive and not retained),
+        sensitive_retention=bool(sensitive and retained),
+    )
     return (
         f"[工具输出较长，已写入文件：{relative_path}]\n"
         f"摘要：\n{summary}\n"

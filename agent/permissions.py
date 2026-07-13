@@ -10,9 +10,14 @@ READONLY = {"read", "grep", "glob"}
 WRITE = {"write", "edit"}
 EXEC = {"bash", "web_fetch"}
 
-# PACS resolver tools are pure compute (no fs/network/subprocess) → auto-allow like read-only.
-# Kept as a separate set so the policy reads clearly; handled in evaluate() as allow.
+# Only resolver tools that do not accept filesystem locations are auto-allowed.
 PACS_READONLY = {"parse_deps", "generate_combinations", "parse_failure", "infer_constraints"}
+PACS_PATH_ARGUMENTS = {
+    "parse_deps": "project_path",
+    # parse_failure is currently compute-only, but reserve its log location
+    # contract so adding it later cannot silently bypass workspace policy.
+    "parse_failure": "log_path",
+}
 # PACS envpool tools create venvs + spawn pip subprocesses → treated like EXEC
 # (auto-run under --auto-approve / MINIOPENCLAW_AUTO_APPROVE, confirm otherwise).
 PACS_EXEC = {"env_create", "env_run", "env_status", "env_cleanup"}
@@ -67,11 +72,15 @@ def evaluate(tool: str, args: dict[str, Any], workdir: Path) -> Decision:
         return Decision("allow", "只读工具自动放行")
 
     if tool in PACS_READONLY:
-        # Pure-compute resolver tools: parse_deps / generate_combinations /
-        # parse_failure / infer_constraints. They only read project files we
-        # point them at; auto-allow (parse_failure reads install logs under the
-        # venv dir, parse_deps reads the project's dependency file).
-        return Decision("allow", "PACS 解析工具为纯计算，自动放行")
+        path_arg = PACS_PATH_ARGUMENTS.get(tool)
+        raw = args.get(path_arg) if path_arg else None
+        if raw:
+            path = _resolved_path(str(raw), root)
+            if not _is_within(path, root):
+                return Decision("deny", f"PACS 解析路径超出工作目录：{path}")
+            if _is_sensitive(path):
+                return Decision("deny", f"禁止读取敏感路径：{path}")
+        return Decision("allow", "PACS 纯计算/受限解析工具自动放行")
 
     if tool in WRITE:
         raw = str(args.get("path", ""))
@@ -88,6 +97,11 @@ def evaluate(tool: str, args: dict[str, Any], workdir: Path) -> Decision:
         return Decision("confirm", "执行或联网工具需要用户确认")
 
     if tool in PACS_EXEC:
+        supplied_workdir = args.get("workdir")
+        if supplied_workdir is not None:
+            target = _resolved_path(str(supplied_workdir), root)
+            if target != root:
+                return Decision("deny", f"PACS 环境工具 workdir 必须等于当前工作目录：{root}")
         # envpool tools create venvs + spawn pip. They run in their own
         # venv-scoped sandbox (envpool/sandbox.py), not the bash bwrap.
         # Confirm by default; auto-approve under --auto-approve.

@@ -115,14 +115,14 @@ class DeepSeekBackend:
             payload["tools"] = tools           # OpenAI tools 格式，base.Tool.schema() 已生成
             payload["tool_choice"] = "auto"
 
-        # --- DEBUG: log outgoing payload ---
+        # --- DEBUG: console-only outgoing payload preview (not persisted) ---
         import json as _json
         _serialized = _json.dumps(payload, ensure_ascii=False, indent=2)
-        print(f"\n[DEBUG] --- outgoing payload ({len(_serialized)} chars) ---")
+        print(f"\n[DEBUG] --- outgoing payload preview ({len(_serialized)} chars total) ---")
         print(_serialized[:4000])
         if len(_serialized) > 4000:
-            print(f"...[truncated, total {len(_serialized)} chars]")
-        print("[DEBUG] --- end payload ---\n")
+            print(f"...[preview truncated, total {len(_serialized)} chars]")
+        print("[DEBUG] --- end outgoing payload preview ---\n")
 
         def _do_request():
             resp = self._client.post(

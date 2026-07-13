@@ -16,9 +16,9 @@ from agent.context import (
     maybe_compact,
     resolve_token_budget,
     spill_observation,
-    truncate_observation,
 )
 from agent.permissions import permission_observation
+from agent.trace import ToolRunTrace, redact_text
 
 
 @dataclass
@@ -44,6 +44,7 @@ def run_react_turns(
     workdir: Path | None = None,
     confirmer: Callable[[str, dict[str, Any], str], bool] | None = None,
     callbacks: ReactCallbacks | None = None,
+    trace: ToolRunTrace | None = None,
 ) -> str:
     """Run the ReAct loop on a mutable message history.
 
@@ -65,6 +66,7 @@ def run_react_turns(
         confirmer: Callable ``(tool_name, args, reason) -> bool`` invoked when
             a tool requires user confirmation and ``auto_approve`` is False.
         callbacks: Optional presentation hooks.
+        trace: Optional tool-only durable trace. It never receives conversation or backend payloads.
 
     Returns:
         The final assistant content string, or a max-turns fallback message.
@@ -109,24 +111,46 @@ def run_react_turns(
             if callbacks.on_tool_call:
                 callbacks.on_tool_call(name, arguments)
 
+            if trace is not None:
+                trace.record_tool_call(
+                    turn=turn, call_index=call_idx, name=name,
+                    tool_id=call.get("id"), arguments=arguments,
+                )
+
             tool = registry.get(name)
+            status = "ok"
             if tool is None:
                 obs = f"错误：未知工具 {name}"
+                status = "error"
             else:
                 obs = permission_observation(
                     name, arguments, workdir,
                     auto_approve=auto_approve, confirmer=confirmer,
                 )
-                if obs is None:
+                if obs is not None:
+                    status = "permission_denied"
+                else:
                     try:
                         obs = tool.run(**arguments)
                     except Exception as e:  # noqa: BLE001
                         obs = f"工具执行错误（{name}）：{e}\n请检查参数并重试。"
+                        status = "error"
+
+            raw_observation = str(obs)
+            if trace is not None:
+                trace.record_tool_result(
+                    turn=turn, call_index=call_idx, name=name,
+                    tool_id=call.get("id"), result=raw_observation, status=status,
+                )
 
             obs = spill_observation(
-                str(obs), name, workdir,
+                raw_observation, name, workdir,
                 turn=turn, call_idx=call_idx, threshold=spill_threshold,
-            ) or truncate_observation(str(obs))
+            )
+            if obs != raw_observation:
+                # Context is not forensic storage. Default summaries avoid replaying
+                # credentials even though the trace keeps integrity metadata.
+                obs, _ = redact_text(obs)
 
             if callbacks.on_tool_result:
                 callbacks.on_tool_result(name, obs)

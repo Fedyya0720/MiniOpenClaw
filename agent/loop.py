@@ -18,6 +18,7 @@ from pathlib import Path
 from tools.base import ToolRegistry
 from agent.context import resolve_token_budget
 from agent.strategy import run_react_turns
+from agent.trace import ToolRunTrace
 
 
 class AgentLoop:
@@ -51,6 +52,7 @@ class AgentLoop:
             {"role": "user", "content": content},
         ]
 
+        trace = ToolRunTrace(self.workdir)
         return run_react_turns(
             self.backend.chat,
             self.registry,
@@ -60,4 +62,5 @@ class AgentLoop:
             spill_threshold=self.spill_threshold,
             auto_approve=self.auto_approve,
             workdir=self.workdir,
+            trace=trace,
         )

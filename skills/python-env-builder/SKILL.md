@@ -69,10 +69,13 @@ dependencies:
 调用 `env_create(python_version, label)` 批量创建 N 个隔离环境
 - N = min(候选数, 可用资源估算)
 
-### 3.2 并行安装
-对每个候选组合调用 `env_run(env_id, packages=[pkg1, pkg2], timeout=120)`
-- 所有环境**同时**下发
-- 等待全部完成（或超时）
+### 3.2 单批次并行安装
+将**朴素仓库安装方案作为 specs 第一项**（例如项目自身或原始 requirements，不先改版本），其余候选随后排列；只调用 **一次** `env_run(specs=[...])` 下发整个批次，由工具内部 ThreadPoolExecutor 并行执行。
+- 禁止为每个候选分别调用 `env_run`，那会把并行退化为串行 ReAct 轮次
+- 若第一项 naive candidate 成功，env_run 会尽可能短路未启动任务；已经运行的任务仍如实计入 attempted_count
+- `naive_success` 表示首项是否成功，`first_success` 按候选语义顺序返回，不能把并发完成顺序伪装成尝试次数
+- 每个结果只返回紧凑摘要；完整 stdout/stderr 从结果的 `log_path`（环境内 `install.log`）读取
+- 自主模式（`--auto-approve` / `MINIOPENCLAW_AUTO_APPROVE=1`）可免交互批准环境执行；`MINIOPENCLAW_PACS_SERIAL=1` 仅用于串行基线
 
 ### 3.3 结果分类
 遍历各环境结果：

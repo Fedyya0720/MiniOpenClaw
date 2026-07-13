@@ -22,8 +22,8 @@ class PackageImportTest(unittest.TestCase):
     def test_selfcheck_still_passes_registry(self):
         from tools.base import build_default_registry
         reg = build_default_registry()
-        # Phase 0 doesn't register PACS tools yet; the 9 baseline tools remain.
-        self.assertEqual(len(reg), 9)
+        # Phase 1 registers five PACS tools on top of the 9 baseline tools.
+        self.assertEqual(len(reg), 14)
 
 
 class PacsPermissionClassificationTest(unittest.TestCase):

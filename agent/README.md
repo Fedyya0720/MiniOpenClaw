@@ -7,6 +7,8 @@ The `agent/` package contains the core agent infrastructure: main loop, CLI entr
 ```
 agent/
 ├── loop.py      # ReAct main loop (think → act → observe → repeat)
+├── strategy.py  # Shared CLI/TUI execution and tool evidence integration
+├── trace.py     # Tool-only durable evidence, integrity metadata, and redaction
 ├── cli.py        # CLI entry point (python -m agent.cli)
 ├── prompts.py    # System prompt with tool catalog + skills template
 ├── context.py    # Token estimation, compaction, observation truncation
@@ -56,6 +58,37 @@ to the system prompt. `KVMemory` separately supports key-based replacement and d
 
 **Boundary:** Context compaction handles one running task; memory persists stable facts
 across processes. Memory is not intended for secrets, transient chat, or codebase RAG.
+
+### 6. Durable Tool Evidence (`trace.py`)
+
+**Scope:** A trace records only tool-call metadata and tool-result artifacts. It never
+stores user/system/model/final prose or backend request/response payloads.
+
+Each CLI run writes to `<workdir>/.mini-openclaw/tool-runs/<run-id>/`, while the TUI
+creates a trace for each submitted ReAct turn. `trace.jsonl` is append-only and each
+result artifact is retained in `artifacts/`, even when it is larger than the context
+spill threshold. Records include call ID, turn/index, result status, original/stored
+character and UTF-8 byte counts, plus SHA-256 hashes. Directories/files use best-effort
+`0700`/`0600` permissions, and an evidence-write failure never interrupts the agent.
+
+**Redaction:** likely credentials in arguments and textual output are redacted by
+default: JSON secret fields, common secret key names, Bearer/Basic authorization
+values, sensitive `NAME=value` environment assignments, and URL credentials. Clean
+output remains exact. Context spills apply the same policy before writing their
+artifact, and their summaries disclose original/stored counts and hashes plus whether
+redaction occurred without previewing sensitive data. Set
+`MINIOPENCLAW_TRACE_SENSITIVE=1` only for an intentional forensic investigation to
+retain exact sensitive values; trace/spill metadata records that warning state. This
+opt-in is never enabled automatically.
+
+**Permission boundary:** resolver paths such as `parse_deps.project_path` must resolve
+within the AgentLoop workspace and cannot traverse sensitive paths or symlink escapes.
+Environment-tool `workdir`, when supplied, must canonically equal the AgentLoop
+workspace; the permission layer rejects arbitrary alternate project roots.
+
+**Retention:** traces and context spills are local operational evidence. There is no
+automatic retention cleanup; remove `.mini-openclaw/tool-runs/` manually according to
+your project policy.
 
 ## Verification
 
