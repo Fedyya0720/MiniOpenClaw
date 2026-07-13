@@ -1,13 +1,25 @@
-"""PACS resolver tools — dependency parsing, combination generation, failure analysis."""
+"""PACS resolver tools — dependency parsing, combination generation, failure analysis,
+constraint-graph inference."""
 from __future__ import annotations
 
 import json
 from pathlib import Path
 
 from resolver.combinations import generate_combinations as _gen_combos
+from resolver.constraint_graph import ConstraintGraph
 from resolver.dep_parser import parse_project
 from resolver.failure_parser import parse_failure_file
 from tools.base import Tool
+
+# Module-level singleton — loaded once, shared across tool invocations.
+_constraint_graph: ConstraintGraph | None = None
+
+
+def _get_graph() -> ConstraintGraph:
+    global _constraint_graph
+    if _constraint_graph is None:
+        _constraint_graph = ConstraintGraph()
+    return _constraint_graph
 
 
 def _parse(project_path: str | None = None) -> str:
@@ -118,4 +130,78 @@ parse_failure_tool = Tool(
         "required": ["log_path"],
     },
     run=_parse_failure,
+)
+
+
+def _infer_constraints(
+    constraints: list[dict[str, object]],
+    run_transitive: bool = True,
+) -> str:
+    """Insert observed constraints into the global constraint graph and optionally
+    run transitive inference to derive new edges."""
+    try:
+        graph = _get_graph()
+        edges = [
+            {
+                "pkg_a": str(c["pkg_a"]), "ver_a": str(c["ver_a"]),
+                "pkg_b": str(c["pkg_b"]), "ver_b": str(c["ver_b"]),
+                "confidence": float(c.get("confidence", 0.5)),
+                "kind": str(c.get("kind", "observed")),
+                "source": str(c.get("source", "infer_constraints_tool")),
+                "error_type": str(c.get("error_type", "")),
+            }
+            for c in constraints
+        ]
+        inserted = graph.insert(edges)
+        derived = 0
+        if run_transitive:
+            touched = set()
+            for e in edges:
+                touched.add(e["pkg_a"])
+                touched.add(e["pkg_b"])
+            derived = graph.infer_transitive(touched) if touched else 0
+        total = len(graph.load_all())
+        return json.dumps(
+            {
+                "ok": True,
+                "inserted": inserted,
+                "derived": derived,
+                "total_edges": total,
+            },
+            ensure_ascii=False, sort_keys=True,
+        )
+    except Exception as exc:
+        return json.dumps(
+            {"ok": False, "error": str(exc), "type": type(exc).__name__},
+            ensure_ascii=False, sort_keys=True,
+        )
+
+
+infer_constraints_tool = Tool(
+    name="infer_constraints",
+    description=(
+        "将 parse_failure 返回的约束条目插入全局约束图，"
+        "可选运行传递推导以发现间接冲突。"
+        "约束图持久化于 ~/.cache/miniopenclaw/constraint_graph.db，跨会话复用。"
+        "返回插入数量、推导数量及图中总边数。"
+    ),
+    parameters={
+        "type": "object",
+        "properties": {
+            "constraints": {
+                "type": "array",
+                "description": (
+                    "parse_failure 返回的 constraints 列表，"
+                    "每项含 pkg_a, ver_a, pkg_b, ver_b，"
+                    "可选 confidence, kind, source, error_type"
+                ),
+            },
+            "run_transitive": {
+                "type": "boolean",
+                "description": "是否运行传递推导以生成 derived 边（默认 true）",
+            },
+        },
+        "required": ["constraints"],
+    },
+    run=_infer_constraints,
 )

@@ -21,6 +21,7 @@ require 'parse_deps tool exists' 'parse_deps' tools/resolver_tools.py
 require 'C2 constraint|prune|剪枝' 'constraint|prune|剪枝' resolver
 require 'C3 failure parser with structured' 'parse_failure|error_type|structured' resolver/failure_parser.py
 require 'C3 parse failure tool' 'parse_failure' tools/resolver_tools.py
+require 'C2 constraint graph with SQLite persistence' 'ConstraintGraph|constraint_graph\.db|infer_transitive' resolver/constraint_graph.py
+require 'C2 infer_constraints tool registered' 'infer_constraints' tools/resolver_tools.py
 
-printf 'PENDING C2 full: constraint graph with persistence belongs to Phase 4 (non-failing)\n'
 exit "$failed"

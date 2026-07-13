@@ -474,5 +474,231 @@ class BackendTest(unittest.TestCase):
         self.assertEqual(result["environment"]["label"], "test-backend")
 
 
+class ConstraintGraphTest(unittest.TestCase):
+    """Phase 4: constraint graph with persistence, transitive inference, pruning."""
+
+    def setUp(self):
+        import tempfile
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.db_path = Path(self.temp_dir.name) / "test_graph.db"
+        self.graph = None
+
+    def tearDown(self):
+        if self.graph is not None:
+            self.graph.close()
+        self.temp_dir.cleanup()
+
+    def _make_graph(self):
+        from resolver.constraint_graph import ConstraintGraph
+        self.graph = ConstraintGraph(self.db_path)
+        return self.graph
+
+    # 1 ─ insert + infer_transitive → derived edge with lower confidence
+    def test_transitive_inference_produces_derived_edge_with_decayed_confidence(self):
+        g = self._make_graph()
+        edges = [
+            {"pkg_a": "A", "ver_a": "1.0", "pkg_b": "B", "ver_b": "2.0",
+             "confidence": 0.9, "kind": "observed", "source": "test"},
+            {"pkg_a": "B", "ver_a": "2.0", "pkg_b": "C", "ver_b": "3.0",
+             "confidence": 0.9, "kind": "observed", "source": "test"},
+            {"pkg_a": "C", "ver_a": "3.0", "pkg_b": "D", "ver_b": "4.0",
+             "confidence": 0.9, "kind": "observed", "source": "test"},
+        ]
+        g.insert(edges)
+        g.infer_transitive({"A", "B", "C", "D"})
+
+        # query A: should find derived edge A↔D (3 hops, conf = 0.9 * 0.7^3 = 0.3087)
+        results = g.query("A")
+        derived = [r for r in results if r["kind"] == "derived"]
+        self.assertGreater(len(derived), 0, "Expected at least one derived edge from A")
+
+        # Check A↔D exists
+        a_d_edges = [
+            r for r in derived
+            if {r["pkg_a"], r["pkg_b"]} == {"A", "D"}
+        ]
+        self.assertEqual(len(a_d_edges), 1, "Expected derived edge A↔D")
+        ad = a_d_edges[0]
+        self.assertLess(ad["confidence"], 0.9, "Derived confidence must be lower than observed")
+        self.assertGreaterEqual(ad["confidence"], 0.3, "Confidence should be >= threshold")
+
+    # 2 ─ prune rejects observed conflicts, flags derived-only, keeps clean
+    def test_prune_rejects_observed_keeps_derived_only_and_clean(self):
+        g = self._make_graph()
+        # Insert observed conflict A1↔B2
+        g.insert([{
+            "pkg_a": "A", "ver_a": "1.0", "pkg_b": "B", "ver_b": "2.0",
+            "confidence": 0.9, "kind": "observed", "source": "test",
+        }])
+        # Insert derived edge A1↔C3 via transitive inference from another source.
+        # We insert it directly as derived for a deterministic test.
+        g.insert([{
+            "pkg_a": "A", "ver_a": "1.0", "pkg_b": "C", "ver_b": "3.0",
+            "confidence": 0.4, "kind": "derived", "source": "test",
+        }])
+
+        combos = [
+            {"A": "1.0", "B": "2.0", "C": "4.0"},   # hits observed A1↔B2 → rejected
+            {"A": "1.0", "B": "3.0", "C": "3.0"},   # hits derived A1↔C3 → flagged
+            {"A": "2.0", "B": "3.0", "C": "4.0"},   # hits nothing → kept
+        ]
+        kept, rejected, flagged = g.prune(combos)
+
+        self.assertEqual(len(rejected), 1)
+        self.assertEqual(rejected[0], {"A": "1.0", "B": "2.0", "C": "4.0"})
+        self.assertEqual(len(flagged), 1)
+        self.assertEqual(flagged[0], {"A": "1.0", "B": "3.0", "C": "3.0"})
+        self.assertEqual(len(kept), 1)
+        self.assertEqual(kept[0], {"A": "2.0", "B": "3.0", "C": "4.0"})
+
+    # 3 ─ confidence decay: 0.7 per hop, stops below threshold
+    def test_confidence_decay_stops_below_threshold(self):
+        g = self._make_graph()
+        # Chain of 5: A→B→C→D→E→F (5 hops from A to F)
+        # Confidence = 0.9 * 0.7^5 = 0.9 * 0.16807 ≈ 0.151 < 0.3 → should NOT appear
+        edges = [
+            {"pkg_a": "A1", "ver_a": "1", "pkg_b": "B1", "ver_b": "1",
+             "confidence": 0.9, "kind": "observed", "source": "test"},
+            {"pkg_a": "B1", "ver_a": "1", "pkg_b": "C1", "ver_b": "1",
+             "confidence": 0.9, "kind": "observed", "source": "test"},
+            {"pkg_a": "C1", "ver_a": "1", "pkg_b": "D1", "ver_b": "1",
+             "confidence": 0.9, "kind": "observed", "source": "test"},
+            {"pkg_a": "D1", "ver_a": "1", "pkg_b": "E1", "ver_b": "1",
+             "confidence": 0.9, "kind": "observed", "source": "test"},
+            {"pkg_a": "E1", "ver_a": "1", "pkg_b": "F1", "ver_b": "1",
+             "confidence": 0.9, "kind": "observed", "source": "test"},
+        ]
+        g.insert(edges)
+        g.infer_transitive({"A1", "B1", "C1", "D1", "E1", "F1"})
+
+        results = g.query("A1")
+        derived = [r for r in results if r["kind"] == "derived"]
+
+        # A1↔C1: 2 hops, conf ≈ 0.9 * 0.7^2 = 0.441 → should exist
+        a_c = [r for r in derived if {r["pkg_a"], r["pkg_b"]} == {"A1", "C1"}]
+        self.assertEqual(len(a_c), 1)
+
+        # A1↔D1: 3 hops, conf ≈ 0.9 * 0.7^3 = 0.3087 → should exist
+        a_d = [r for r in derived if {r["pkg_a"], r["pkg_b"]} == {"A1", "D1"}]
+        self.assertEqual(len(a_d), 1)
+
+        # A1↔E1: 4 hops, conf ≈ 0.9 * 0.7^4 = 0.216 < 0.3 → should NOT exist
+        a_e = [r for r in derived if {r["pkg_a"], r["pkg_b"]} == {"A1", "E1"}]
+        self.assertEqual(len(a_e), 0)
+
+        # A1↔F1: 5 hops → definitely not
+        a_f = [r for r in derived if {r["pkg_a"], r["pkg_b"]} == {"A1", "F1"}]
+        self.assertEqual(len(a_f), 0)
+
+    # 4 ─ persistence: write → new instance loads same edges
+    def test_persistence_write_and_reload(self):
+        g1 = self._make_graph()
+        edges = [
+            {"pkg_a": "X", "ver_a": "1.0", "pkg_b": "Y", "ver_b": "2.0",
+             "confidence": 0.85, "kind": "observed", "source": "test",
+             "error_type": "version_conflict"},
+        ]
+        g1.insert(edges)
+        g1.close()
+
+        # New instance pointing at the same db file
+        from resolver.constraint_graph import ConstraintGraph
+        g2 = ConstraintGraph(self.db_path)
+        all_edges = g2.load_all()
+        g2.close()
+
+        self.assertEqual(len(all_edges), 1)
+        self.assertEqual(all_edges[0]["pkg_a"], "X")
+        self.assertEqual(all_edges[0]["ver_a"], "1.0")
+        self.assertEqual(all_edges[0]["pkg_b"], "Y")
+        self.assertEqual(all_edges[0]["ver_b"], "2.0")
+        self.assertEqual(all_edges[0]["confidence"], 0.85)
+        self.assertEqual(all_edges[0]["kind"], "observed")
+        self.graph = g2  # for tearDown cleanup
+
+    # 5 ─ inject_constraints appends constraint digest to system prompt
+    def test_inject_constraints_appends_digest(self):
+        g = self._make_graph()
+        g.insert([
+            {"pkg_a": "numpy", "ver_a": "1.26.0", "pkg_b": "torch", "ver_b": "2.5.0",
+             "confidence": 0.9, "kind": "observed", "source": "test",
+             "error_type": "version_conflict"},
+        ])
+
+        from resolver.constraint_graph import ConstraintGraph
+        original = "You are a helpful agent."
+        augmented = ConstraintGraph.inject_constraints(original, g)
+        self.assertIn("## Known constraints", augmented)
+        self.assertIn("numpy==1.26.0", augmented)
+        self.assertIn("torch==2.5.0", augmented)
+        self.assertTrue(augmented.startswith(original))
+
+        # No observed edges → prompt unchanged (separate empty db)
+        db2 = Path(self.temp_dir.name) / "empty_graph.db"
+        g2 = ConstraintGraph(db2)
+        same = ConstraintGraph.inject_constraints("system", g2)
+        self.assertEqual(same, "system")
+        g2.close()
+
+    # 6 ─ deduplication: inserting same edge twice doesn't create duplicate
+    def test_deduplication_same_edge_inserted_twice(self):
+        g = self._make_graph()
+        edge = {"pkg_a": "P", "ver_a": "1", "pkg_b": "Q", "ver_b": "2",
+                "confidence": 0.8, "kind": "observed", "source": "test"}
+        n1 = g.insert([edge])
+        self.assertEqual(n1, 1)
+
+        n2 = g.insert([edge])
+        self.assertEqual(n2, 0)  # no new rows
+
+        all_edges = g.load_all()
+        self.assertEqual(len(all_edges), 1)
+
+    # 7 ─ insert with reversed package order still deduplicates
+    def test_deduplication_reversed_order(self):
+        g = self._make_graph()
+        g.insert([{"pkg_a": "P", "ver_a": "1", "pkg_b": "Q", "ver_b": "2",
+                    "confidence": 0.8, "kind": "observed", "source": "test"}])
+        # Swap order
+        g.insert([{"pkg_a": "Q", "ver_a": "2", "pkg_b": "P", "ver_b": "1",
+                    "confidence": 0.8, "kind": "observed", "source": "test"}])
+        all_edges = g.load_all()
+        self.assertEqual(len(all_edges), 1)
+
+    # 8 ─ empty prune returns empty lists
+    def test_prune_empty_combinations(self):
+        g = self._make_graph()
+        kept, rejected, flagged = g.prune([])
+        self.assertEqual(kept, [])
+        self.assertEqual(rejected, [])
+        self.assertEqual(flagged, [])
+
+    # 9 ─ infer_constraints tool returns structured JSON
+    def test_infer_constraints_tool_returns_structured_json(self):
+        from tools.resolver_tools import infer_constraints_tool, _constraint_graph as _cg
+        # Use a fresh temp db for isolation
+        import resolver.constraint_graph as cg_mod
+        old_graph = _cg
+        try:
+            import tools.resolver_tools as rt
+            rt._constraint_graph = cg_mod.ConstraintGraph(self.db_path)
+            result = json.loads(infer_constraints_tool.run(
+                constraints=[
+                    {"pkg_a": "a", "ver_a": "1", "pkg_b": "b", "ver_b": "2",
+                     "confidence": 0.9},
+                    {"pkg_a": "b", "ver_a": "2", "pkg_b": "c", "ver_b": "3",
+                     "confidence": 0.9},
+                ],
+                run_transitive=True,
+            ))
+            self.assertTrue(result["ok"], f"Expected ok=True, got {result}")
+            self.assertEqual(result["inserted"], 2)
+            self.assertGreaterEqual(result["derived"], 1)  # a↔c derived
+            self.assertGreaterEqual(result["total_edges"], 3)
+        finally:
+            import tools.resolver_tools as rt
+            rt._constraint_graph = old_graph
+
+
 if __name__ == "__main__":
     unittest.main()

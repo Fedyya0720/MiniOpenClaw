@@ -342,6 +342,49 @@ def _run_one(
             ),
         )
     metadata = _write_pacs_log(durable_log_path, attempts, timeout=timeout)
+    # ── system-dep remediation via conda ──────────────────────────────────
+    if (
+        not timed_out
+        and returncode != 0
+        and os.getenv("MINIOPENCLAW_REQUIRE_PIP_SANDBOX") != "1"
+    ):
+        try:
+            from resolver.failure_parser import parse_failure as _parse
+            from envpool.backends import CondaBackend as _conda
+
+            entries = _parse(stderr=stderr, stdout=stdout)
+            if any(e["error_type"] == "system_dep_missing" for e in entries) and _conda.probe():
+                conda_path = env_path.parent / f"{env_path.name}-conda"
+                conda_path.mkdir(parents=True, exist_ok=True)
+                _conda.create(conda_path, None, timeout=timeout * 2)
+                conda_argv = [
+                    str(_conda.python_path(conda_path)),
+                    "-m", "pip", "install",
+                    *spec.packages,
+                ] if spec.packages else command
+                conda_result = subprocess.run(
+                    conda_argv, cwd=str(pool.workdir),
+                    capture_output=True, text=True, timeout=timeout,
+                    env=_install_environment(conda_path),
+                )
+                attempts.append((
+                    "conda-retry", conda_argv,
+                    conda_result.stdout or "", conda_result.stderr or "", False,
+                ))
+                metadata = _write_pacs_log(durable_log_path, attempts, timeout=timeout)
+                returncode = conda_result.returncode
+                stdout = conda_result.stdout or ""
+                stderr = conda_result.stderr or ""
+                descriptor = SandboxDescriptor(
+                    argv=conda_argv, kind="conda",
+                    filesystem_isolated=True, network_enabled=True,
+                    writable_paths=[str(conda_path)],
+                    readable_paths=["/", str(pool.workdir)],
+                    warning=None,
+                )
+        except Exception:
+            pass  # conda retry is best-effort; original result stands
+    # ── end remediation ───────────────────────────────────────────────────
     if timed_out:
         return InstallResult(
             env_id=spec.env_id,

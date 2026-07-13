@@ -13,6 +13,7 @@ from pathlib import Path
 from tools.base import build_default_registry
 from agent.memory import Memory, inject_memory
 from agent.prompts import build_system_prompt
+from resolver.constraint_graph import ConstraintGraph
 from skills.loader import load_skills, skills_catalog
 
 
@@ -94,6 +95,9 @@ def _build_agent_deps():
     skills = load_skills()
     system_prompt = inject_memory(
         build_system_prompt(skills_catalog(skills)), Memory(Path.cwd() / "MEMORY.md")
+    )
+    system_prompt = ConstraintGraph.inject_constraints(
+        system_prompt, ConstraintGraph()
     )
     return backend, reg, system_prompt
 
