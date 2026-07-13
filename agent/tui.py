@@ -11,17 +11,17 @@
   python -m agent.cli -t          # 同上（短参数）
 
 设计原则：
-  - 不修改 AgentLoop / loop.py —— _run_react_turn() 是薄包装，ReAct 逻辑完全一样
-  - Rich Live 自带刷新线程，主线程同步迭代 SSE 即可，无需 async
-  - FakeBackend 无 chat_stream → 用 _fake_stream() 模拟逐字输出
+  - ReAct 循环逻辑在 agent/strategy.py 中统一实现。
+  - TUI 只负责：流式后端包装、Rich 渲染回调、REPL 命令处理。
+  - Rich Live 自带刷新线程，主线程同步迭代 SSE 即可，无需 async。
+  - FakeBackend 无 chat_stream → 用 _fake_stream() 模拟逐字输出。
 """
 from __future__ import annotations
 import json
 import os
 import re
-import subprocess
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -35,8 +35,7 @@ from prompt_toolkit.history import FileHistory
 from prompt_toolkit.completion import Completer, Completion, PathCompleter
 
 from tools.base import ToolRegistry
-from agent.context import estimate_tokens, maybe_compact, truncate_observation
-from agent.permissions import permission_observation
+from agent.strategy import ReactCallbacks, run_react_turns
 
 
 # ---------------------------------------------------------------------------
@@ -213,8 +212,64 @@ def _get_stream(backend: Any):
 
 
 # ---------------------------------------------------------------------------
-# 流式 ReAct turn
+# 流式后端包装 + ReAct turn
 # ---------------------------------------------------------------------------
+
+def _make_backend_call(backend: Any, console: Console):
+    """返回一个 backend_call(messages, tools) -> assistant_dict 包装函数。
+
+    包装函数内部使用 chat_stream（或 _fake_stream 兜底）并实时刷新 Rich Live。
+    """
+    stream_fn = _get_stream(backend)
+
+    def backend_call(messages: list[dict[str, Any]], tools: list[dict] | None) -> dict:
+        final_content = ""
+        tool_calls_result: list[dict[str, Any]] = []
+
+        def _initial_panel() -> Panel:
+            return Panel(
+                "思考中...",
+                title="Assistant",
+                border_style="green",
+                width=min(_term_width(), 120),
+            )
+
+        if stream_fn is not None:
+            content_chunks: list[str] = []
+            with Live(_initial_panel(), console=console, refresh_per_second=10, transient=True) as live:
+                for event in stream_fn(messages, tools=tools):
+                    if event["type"] == "content":
+                        content_chunks.append(event["content"])
+                        live.update(Panel(
+                            Text("".join(content_chunks), style="white"),
+                            title="Assistant",
+                            border_style="green",
+                            width=min(_term_width(), 120),
+                        ))
+                    elif event["type"] == "tool_call_start":
+                        live.update(Panel(
+                            Text(f"调用工具 {_tool_name(event['name'])}...", style="yellow"),
+                            title="Assistant",
+                            border_style="yellow",
+                            width=min(_term_width(), 120),
+                        ))
+                    elif event["type"] == "done":
+                        final_content = event["content"]
+                        tool_calls_result = event["tool_calls"]
+        else:
+            with Live(_initial_panel(), console=console, refresh_per_second=20, transient=True) as live:
+                for event in _fake_stream(backend, messages, tools=tools):
+                    if event["type"] == "done":
+                        final_content = event["content"]
+                        tool_calls_result = event["tool_calls"]
+
+        return {
+            "content": final_content,
+            "tool_calls": tool_calls_result,
+        }
+
+    return backend_call
+
 
 def _run_react_turn(
     backend: Any,
@@ -230,138 +285,38 @@ def _run_react_turn(
 ) -> None:
     """跑一轮 ReAct 循环：流式显示助手响应 → 执行工具 → 注入观察 → 重复。
 
-    与 agent/loop.py:AgentLoop.run() 的逻辑完全一致，**额外**做了：
-      1. 用 chat_stream()（或 _fake_stream 兜底）替代 chat()
-      2. 用 Rich Live 实时刷新，用户能看到逐个 token
-      3. messages 是持久的（多轮对话），而非每次新建
+    实际逻辑委托给 agent/strategy.py:run_react_turns()；本函数只提供流式后端
+    包装和 Rich 渲染回调。
     """
-    # 判断是否有真正的流式后端
-    stream_fn = _get_stream(backend)
+    backend_call = _make_backend_call(backend, console)
 
-    for turn in range(max_turns):
-        # --- 上下文压缩（与 loop.py 相同）---
-        if estimate_tokens(messages) > token_budget:
-            messages[:] = maybe_compact(messages, token_budget)
-            console.print(Panel("[上下文已压缩]", border_style="bright_black"))
+    callbacks = ReactCallbacks(
+        on_context_compacted=lambda: console.print(
+            Panel("[上下文已压缩]", border_style="bright_black")
+        ),
+        on_assistant_message=lambda content, _tool_calls: (
+            display.print(display.render_assistant(content))
+            if content.strip()
+            else None
+        ),
+        on_tool_call=lambda name, args: display.print(display.render_tool_call(name, args)),
+        on_tool_result=lambda name, result: display.print(display.render_tool_result(name, result)),
+        on_max_turns_reached=lambda: display.print(display.render_system(
+            "达到最大轮数上限，任务可能未完成。请尝试拆分任务或用 /clear 清空历史。"
+        )),
+    )
 
-        # --- 流式调用 ---
-        final_content = ""
-        tool_calls_result: list[dict[str, Any]] = []
-
-        if stream_fn is not None:
-            # ===== 真流式（DeepSeek 等）=====
-            content_chunks: list[str] = []
-
-            with Live(
-                Panel("思考中...", title="Assistant", border_style="green",
-                      width=min(_term_width(), 120)),
-                console=console,
-                refresh_per_second=10,
-                transient=True,
-            ) as live:
-                try:
-                    for event in stream_fn(messages, tools=registry.schemas()):
-                        if event["type"] == "content":
-                            content_chunks.append(event["content"])
-                            live.update(Panel(
-                                Text("".join(content_chunks), style="white"),
-                                title="Assistant",
-                                border_style="green",
-                                width=min(_term_width(), 120),
-                            ))
-
-                        elif event["type"] == "tool_call_start":
-                            live.update(Panel(
-                                Text(f"调用工具 {_tool_name(event['name'])}...", style="yellow"),
-                                title="Assistant",
-                                border_style="yellow",
-                                width=min(_term_width(), 120),
-                            ))
-
-                        elif event["type"] == "done":
-                            final_content = event["content"]
-                            tool_calls_result = event["tool_calls"]
-
-                except KeyboardInterrupt:
-                    console.print(Panel("已中断", border_style="yellow"))
-                    return
-        else:
-            # ===== FakeBackend 兜底 =====
-            with Live(
-                Panel("思考中...", title="Assistant", border_style="green",
-                      width=min(_term_width(), 120)),
-                console=console,
-                refresh_per_second=20,
-                transient=True,
-            ) as live:
-                try:
-                    for event in _fake_stream(backend, messages, tools=registry.schemas()):
-                        if event["type"] == "content":
-                            pass  # _fake_stream 太快，只取最终结果
-                        elif event["type"] == "done":
-                            final_content = event["content"]
-                            tool_calls_result = event["tool_calls"]
-                except KeyboardInterrupt:
-                    console.print(Panel("已中断", border_style="yellow"))
-                    return
-
-        # --- 显示最终助手文本 ---
-        assistant_msg: dict[str, Any] = {
-            "role": "assistant",
-            "content": final_content,
-            "tool_calls": tool_calls_result,
-        }
-
-        if final_content.strip():
-            display.print(display.render_assistant(final_content))
-
-        # --- 无工具调用 → 最终答复，返回 ---
-        if not tool_calls_result:
-            messages.append(assistant_msg)
-            return
-
-        # --- 工具调度（与 loop.py 完全一致）---
-        messages.append(assistant_msg)
-
-        for call in tool_calls_result:
-            # 显示工具调用
-            display.print(display.render_tool_call(
-                call["name"], call.get("arguments", {})
-            ))
-
-            # 执行工具
-            tool = registry.get(call["name"])
-            if tool is None:
-                obs = f"错误：未知工具 {call['name']}"
-            else:
-                arguments = call.get("arguments", {})
-                obs = permission_observation(
-                    call["name"], arguments, workdir or Path.cwd(),
-                    auto_approve=auto_approve, confirmer=confirmer,
-                )
-                if obs is None:
-                    try:
-                        obs = tool.run(**arguments)
-                    except Exception as e:
-                        obs = f"工具执行错误（{call['name']}）：{e}\n请检查参数并重试。"
-
-            obs = truncate_observation(str(obs))
-
-            # 显示工具结果
-            display.print(display.render_tool_result(call["name"], obs))
-
-            # 注入 observation
-            messages.append({
-                "role": "tool",
-                "name": call["name"],
-                "tool_call_id": call.get("id"),
-                "content": obs,
-            })
-
-    # 达到最大轮数
-    display.print(display.render_system(
-        "达到最大轮数上限，任务可能未完成。请尝试拆分任务或用 /clear 清空历史。"
-    ))
+    run_react_turns(
+        backend_call,
+        registry,
+        messages,
+        max_turns=max_turns,
+        token_budget=token_budget,
+        auto_approve=auto_approve,
+        workdir=workdir,
+        confirmer=confirmer,
+        callbacks=callbacks,
+    )
 
 
 # ---------------------------------------------------------------------------

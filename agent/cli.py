@@ -75,6 +75,29 @@ def _make_backend():
         return FakeBackend()
 
 
+def _wire_mcp(reg):
+    """尝试连接 MCP echo server，将其工具并入注册表。失败不阻塞启动。"""
+    from mcp.client import MCPClient, register_mcp_tools
+    try:
+        mcp = MCPClient(["python", "mcp/echo_server.py"])
+        mcp.start()
+        register_mcp_tools(reg, mcp)
+    except Exception as e:  # noqa
+        print(f"[提示] MCP 未接入（{e}），仅用内置工具。")
+
+
+def _build_agent_deps():
+    """构造 CLI/TUI 共享的后端、注册表和系统提示词。"""
+    reg = build_default_registry()
+    _wire_mcp(reg)
+    backend = _make_backend()
+    skills = load_skills()
+    system_prompt = inject_memory(
+        build_system_prompt(skills_catalog(skills)), Memory(Path.cwd() / "MEMORY.md")
+    )
+    return backend, reg, system_prompt
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="mini-openclaw")
     p.add_argument("task", nargs="?", help="要让 agent 完成的任务（自然语言）")
@@ -87,27 +110,10 @@ def main(argv: list[str] | None = None) -> int:
                    help="自动批准需确认的工具调用（权限层 deny 仍会拦截）")
     args = p.parse_args(argv)
 
-    # --- MCP 工具接入 ---
-    def _wire_mcp(reg):
-        """尝试连接 MCP echo server，将其工具并入注册表。失败不阻塞启动。"""
-        from mcp.client import MCPClient, register_mcp_tools
-        try:
-            mcp = MCPClient(["python", "mcp/echo_server.py"])
-            mcp.start()
-            register_mcp_tools(reg, mcp)
-        except Exception as e:  # noqa
-            print(f"[提示] MCP 未接入（{e}），仅用内置工具。")
-
     # --- TUI 模式 ---
     if args.tui:
         from agent.tui import run_tui
-        reg = build_default_registry()
-        _wire_mcp(reg)
-        backend = _make_backend()
-        skills = load_skills()
-        system_prompt = inject_memory(
-            build_system_prompt(skills_catalog(skills)), Memory(Path.cwd() / "MEMORY.md")
-        )
+        backend, reg, system_prompt = _build_agent_deps()
         run_tui(backend, reg, system_prompt, auto_approve=args.auto_approve)
         return 0
 
@@ -116,13 +122,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # 真正跑任务：优先用 DeepSeek API；没配 key 时回退到 FakeBackend（离线打通管道）
     from agent.loop import AgentLoop
-    reg = build_default_registry()
-    _wire_mcp(reg)
-    backend = _make_backend()
-    skills = load_skills()
-    system_prompt = inject_memory(
-        build_system_prompt(skills_catalog(skills)), Memory(Path.cwd() / "MEMORY.md")
-    )
+    backend, reg, system_prompt = _build_agent_deps()
     agent = AgentLoop(backend, reg, system_prompt,
                       auto_approve=args.auto_approve, workdir=Path.cwd())
     print(agent.run(args.task, images=args.image))

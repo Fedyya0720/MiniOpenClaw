@@ -16,8 +16,7 @@ from typing import Any
 from pathlib import Path
 
 from tools.base import ToolRegistry
-from agent.context import estimate_tokens, maybe_compact, truncate_observation
-from agent.permissions import permission_observation
+from agent.strategy import run_react_turns
 
 
 class AgentLoop:
@@ -46,39 +45,13 @@ class AgentLoop:
             {"role": "system", "content": self.system_prompt},
             {"role": "user", "content": content},
         ]
-        for turn in range(self.max_turns):
-            # Day7: context management — compact if over budget
-            if estimate_tokens(messages) > self.token_budget:
-                messages = maybe_compact(messages, self.token_budget)
 
-            assistant = self.backend.chat(messages, tools=self.registry.schemas())
-            messages.append({"role": "assistant",
-                             "content": assistant.get("content", ""),
-                             "tool_calls": assistant.get("tool_calls", [])})
-
-            tool_calls = assistant.get("tool_calls") or []
-            if not tool_calls:
-                return assistant.get("content", "")
-
-            for call in tool_calls:
-                tool = self.registry.get(call["name"])
-                if tool is None:
-                    obs = f"错误：未知工具 {call['name']}"
-                else:
-                    arguments = call.get("arguments", {})
-                    obs = permission_observation(
-                        call["name"], arguments, self.workdir,
-                        auto_approve=self.auto_approve,
-                    )
-                    if obs is None:
-                        # Day7: error recovery — exception text as observation
-                        try:
-                            obs = tool.run(**arguments)
-                        except Exception as e:
-                            obs = f"工具执行错误（{call['name']}）：{e}\n请检查参数并重试。"
-                # Day7: truncate long observations
-                obs = truncate_observation(str(obs))
-                messages.append({"role": "tool", "name": call["name"],
-                                 "tool_call_id": call.get("id"), "content": obs})
-
-        return "[达到最大轮数上限，未完成任务]"
+        return run_react_turns(
+            self.backend.chat,
+            self.registry,
+            messages,
+            max_turns=self.max_turns,
+            token_budget=self.token_budget,
+            auto_approve=self.auto_approve,
+            workdir=self.workdir,
+        )
