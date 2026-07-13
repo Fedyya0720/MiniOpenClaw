@@ -1,0 +1,7 @@
+{
+  "goal": "Implement the PACS Python environment builder described by the latest repository plan",
+  "autonomy_mode": "interactive_governed_user_approved_plan",
+  "constraints": ["standard-library-first", "tool-run-returns-string", "no-react-loop-intrusion"],
+  "non_goals": ["full PyPI solver", "large dependency downloads in tests"],
+  "completion_policy": "claim completion only after automated verification and cleanup"
+}

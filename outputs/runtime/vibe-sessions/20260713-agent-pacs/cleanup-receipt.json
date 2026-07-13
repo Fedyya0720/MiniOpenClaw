@@ -1,0 +1,5 @@
+{
+  "status": "complete",
+  "targets": ["/tmp/mini-agent-pacs-e2e", "/tmp/miniopenclaw-agent-e2e-runtime", "generated Python caches"],
+  "preserved": ["source changes", "summarized trace evidence", "test report"]
+}

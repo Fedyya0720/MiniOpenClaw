@@ -1,0 +1,18 @@
+{
+  "phase": "real_e2e",
+  "status": "complete",
+  "scenario": {
+    "requirements": ["requests>=2.25,<2.33", "urllib3==2.0.0"],
+    "round_1": {"candidate": ["requests==2.25.0", "urllib3==2.0.0"], "pip_result": "ResolutionImpossible"},
+    "round_2": {"candidate": ["requests==2.31.0", "urllib3==2.0.0"], "pip_result": "success"}
+  },
+  "observed": {
+    "rounds": 2,
+    "attempts": 2,
+    "duration_seconds": 16.907,
+    "import_versions": {"requests": "2.31.0", "urllib3": "2.0.0"},
+    "lock_contains": ["requests==2.31.0", "urllib3==2.0.0"],
+    "constraint": "requests==2.25.0 conflicts with urllib3==2.0.0",
+    "remaining_environment_count": 1
+  }
+}

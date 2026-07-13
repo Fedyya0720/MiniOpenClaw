@@ -1,0 +1,8 @@
+[
+  {"stage": "skeleton_check", "status": "complete"},
+  {"stage": "deep_interview", "status": "complete", "basis": "explicit user test protocol"},
+  {"stage": "requirement_doc", "status": "complete"},
+  {"stage": "xl_plan", "status": "complete", "internal_grade": "L"},
+  {"stage": "plan_execute", "status": "complete", "verification": "natural-language route and install traces"},
+  {"stage": "phase_cleanup", "status": "complete"}
+]

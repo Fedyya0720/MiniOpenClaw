@@ -63,6 +63,13 @@ E2E_TASKS: list[E2ETask] = [
             "CSV 文件存在且有 10 行数据，统计概览描述了每列特征"),
     E2ETask("multi-step", "创建一个 Python 项目：main.py 调用 lib/helper.py 里的函数，写 README，用 bash 运行验证",
             "项目结构完整，运行成功，README 描述了用法"),
+    # PACS: parallel adaptive constraint search
+    E2ETask("pacs-analyze", "分析 ./test-project 的 Python 依赖并生成不超过 4 个兼容候选组合",
+            "调用 parse_deps 和 generate_combinations，候选数量不超过 4"),
+    E2ETask("pacs-failure", "解析一段 pip ResolutionImpossible 日志并记录冲突约束",
+            "调用 parse_failure 和 infer_constraints，输出结构化 dependency_conflict"),
+    E2ETask("pacs-env", "为 ./test-project 创建隔离环境并验证，失败时清理环境",
+            "调用 env_create/env_run/env_status，失败环境由 env_cleanup 清理"),
 ]
 
 # ========== Day3 下午 · 评估 harness ==========

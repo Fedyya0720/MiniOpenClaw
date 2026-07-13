@@ -1,0 +1,9 @@
+{
+  "status": "complete",
+  "backend": "DeepSeekBackend",
+  "model": "deepseek-v4-flash",
+  "route_tools": ["skill_read", "glob", "bash", "read"],
+  "install_tools": ["skill_read", "bash", "read", "glob", "pacs_build", "bash", "read"],
+  "pacs_result": {"success": true, "rounds": 1, "attempts": 2, "project_installed": true},
+  "independent_checks": {"pip_check": true, "import_sample": true, "add_one_41": 42, "remaining_envs": 1}
+}

@@ -1,0 +1,7 @@
+{
+  "stage": "skeleton_check",
+  "status": "complete",
+  "branch": "codex/pacs-env-builder",
+  "component_baseline": "35 tests passed",
+  "identified_gap": "no real adaptive end-to-end build"
+}

@@ -6,9 +6,14 @@ from pathlib import Path
 from typing import Any, Callable
 
 
-READONLY = {"read", "grep", "glob"}
+READONLY = {"read", "grep", "glob", "skill_read"}
 WRITE = {"write", "edit"}
-EXEC = {"bash", "web_fetch"}
+EXEC = {
+    "bash", "web_fetch",
+    "env_create", "env_run", "env_status", "env_cleanup",
+    "parse_deps", "generate_combinations", "parse_failure", "infer_constraints",
+    "pacs_build",
+}
 
 PROTECTED_PARTS = {".git", ".env", ".ssh", ".gnupg"}
 SENSITIVE_NAMES = {

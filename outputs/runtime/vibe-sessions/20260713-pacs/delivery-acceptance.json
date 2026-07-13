@@ -1,0 +1,8 @@
+{
+  "status": "accepted",
+  "automated_tests": {"passed": 35, "failed": 0},
+  "import_check": "passed",
+  "diff_check": "passed",
+  "completion_wording_allowed": true,
+  "not_verified": ["large third-party package installation", "live LLM-driven CLI end-to-end run"]
+}

@@ -1,0 +1,7 @@
+{
+  "stage": "phase_cleanup",
+  "status": "complete",
+  "removed": ["envpool/__pycache__", "resolver/__pycache__", "/tmp/miniopenclaw-pacs-test"],
+  "preserved": ["pre-existing ignored env_agent/__pycache__"],
+  "workspace_runtime_residue": false
+}

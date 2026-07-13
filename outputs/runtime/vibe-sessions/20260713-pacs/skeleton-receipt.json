@@ -1,0 +1,9 @@
+{
+  "run_id": "20260713-pacs",
+  "stage": "skeleton_check",
+  "status": "complete",
+  "branch_base": "origin/main@aa86294",
+  "active_branch": "codex/pacs-env-builder",
+  "source_plan": ".plans/006-pacs-env-builder/plan.md",
+  "acceptance": ".plans/006-pacs-env-builder/done-standard.md"
+}

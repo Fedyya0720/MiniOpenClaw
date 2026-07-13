@@ -1,0 +1,14 @@
+{
+  "stage": "phase_cleanup",
+  "status": "complete",
+  "targets": [
+    "/tmp/pacs-real-pypi-project",
+    "/tmp/pacs-cli-project",
+    "/tmp/miniopenclaw-pacs-final-test",
+    "/tmp/pacs-pypi-index.json",
+    "envpool/__pycache__",
+    "resolver/__pycache__",
+    "pacs/__pycache__"
+  ],
+  "preserved": ["all source code", "governance evidence", "pre-existing ignored caches"]
+}

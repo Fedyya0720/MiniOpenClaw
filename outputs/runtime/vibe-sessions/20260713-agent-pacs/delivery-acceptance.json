@@ -1,0 +1,8 @@
+{
+  "status": "accepted",
+  "skill_recalled": true,
+  "pacs_called_by_agent": true,
+  "permission_auto_approve": true,
+  "environment_verified": true,
+  "completion_wording_allowed": true
+}

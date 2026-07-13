@@ -1,0 +1,13 @@
+{
+  "status": "accepted",
+  "real_version_discovery": true,
+  "real_parallel_pip": true,
+  "adaptive_failure_then_success": true,
+  "import_validation": true,
+  "lock_file": true,
+  "report": true,
+  "failed_environment_cleanup": true,
+  "agent_tool": "pacs_build",
+  "cli": "python -m pacs.cli",
+  "completion_wording_allowed": true
+}

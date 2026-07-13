@@ -1,0 +1,6 @@
+{
+  "goal": "complete and prove real PACS dependency resolution",
+  "acceptance": "real pip failure followed by successful candidate, import, lock, report and cleanup",
+  "autonomy_mode": "interactive_governed_user_approved",
+  "non_goals": ["general SAT completeness", "conda and poetry execution backends"]
+}

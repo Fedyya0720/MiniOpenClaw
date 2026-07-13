@@ -1,0 +1,5 @@
+{
+  "goal": "natural-language MiniOpenClaw Agent to PACS end-to-end proof",
+  "permission_policy": "auto-approve confirm decisions per explicit user authorization; never override deny",
+  "completion_policy": "require trace plus independent environment verification"
+}

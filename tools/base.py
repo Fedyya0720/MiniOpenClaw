@@ -79,4 +79,14 @@ def build_default_registry() -> ToolRegistry:
     from .memory import remember_tool
     reg.register(remember_tool)
 
+    from .skill_tools import skill_read_tool
+    reg.register(skill_read_tool)
+
+    # PACS: isolated environment pool + dependency constraint resolver
+    from .env_tools import ENV_TOOLS
+    from .pacs_tools import pacs_build_tool
+    from .resolver_tools import RESOLVER_TOOLS
+    for tool in (*ENV_TOOLS, *RESOLVER_TOOLS, pacs_build_tool):
+        reg.register(tool)
+
     return reg

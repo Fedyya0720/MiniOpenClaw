@@ -12,6 +12,7 @@
 Day5 你要把下面的 run() 真正实现出来（Day6 随工具集扩展完善）。骨架已给出结构与防呆上限。
 """
 from __future__ import annotations
+import json
 from typing import Any
 from pathlib import Path
 
@@ -23,7 +24,8 @@ from agent.permissions import permission_observation
 class AgentLoop:
     def __init__(self, backend: Any, registry: ToolRegistry, system_prompt: str,
                  max_turns: int = 20, token_budget: int = 8000,
-                 auto_approve: bool = False, workdir: Path | None = None):
+                 auto_approve: bool = False, workdir: Path | None = None,
+                 trace_path: Path | None = None):
         self.backend = backend
         self.registry = registry
         self.system_prompt = system_prompt
@@ -31,6 +33,16 @@ class AgentLoop:
         self.token_budget = token_budget    # 触发 compaction 的 token 阈值
         self.auto_approve = auto_approve
         self.workdir = (workdir or Path.cwd()).resolve()
+        self.trace_path = trace_path
+        if self.trace_path:
+            self.trace_path.parent.mkdir(parents=True, exist_ok=True)
+            self.trace_path.write_text("", encoding="utf-8")
+
+    def _trace(self, event: dict[str, Any]) -> None:
+        if not self.trace_path:
+            return
+        with self.trace_path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(event, ensure_ascii=False) + "\n")
 
     def run(self, user_task: str, images: list[str] | None = None) -> str:
         # 构建 user 消息：纯文本 or 文本+图片内容块
@@ -52,6 +64,12 @@ class AgentLoop:
                 messages = maybe_compact(messages, self.token_budget)
 
             assistant = self.backend.chat(messages, tools=self.registry.schemas())
+            self._trace({
+                "turn": turn,
+                "type": "assistant",
+                "content": assistant.get("content", ""),
+                "tool_calls": assistant.get("tool_calls", []),
+            })
             messages.append({"role": "assistant",
                              "content": assistant.get("content", ""),
                              "tool_calls": assistant.get("tool_calls", [])})
@@ -78,6 +96,13 @@ class AgentLoop:
                             obs = f"工具执行错误（{call['name']}）：{e}\n请检查参数并重试。"
                 # Day7: truncate long observations
                 obs = truncate_observation(str(obs))
+                self._trace({
+                    "turn": turn,
+                    "type": "tool",
+                    "name": call["name"],
+                    "arguments": call.get("arguments", {}),
+                    "observation": obs,
+                })
                 messages.append({"role": "tool", "name": call["name"],
                                  "tool_call_id": call.get("id"), "content": obs})
 

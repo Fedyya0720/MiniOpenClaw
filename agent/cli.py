@@ -85,6 +85,7 @@ def main(argv: list[str] | None = None) -> int:
                    help="附加图片到用户消息（可多次指定），打通多模态输入通道")
     p.add_argument("--auto-approve", action="store_true",
                    help="自动批准需确认的工具调用（权限层 deny 仍会拦截）")
+    p.add_argument("--trace", help="将 Agent 工具调用与 observation 写入 JSONL 轨迹")
     args = p.parse_args(argv)
 
     # --- MCP 工具接入 ---
@@ -124,7 +125,8 @@ def main(argv: list[str] | None = None) -> int:
         build_system_prompt(skills_catalog(skills)), Memory(Path.cwd() / "MEMORY.md")
     )
     agent = AgentLoop(backend, reg, system_prompt,
-                      auto_approve=args.auto_approve, workdir=Path.cwd())
+                      auto_approve=args.auto_approve, workdir=Path.cwd(),
+                      trace_path=Path(args.trace) if args.trace else None)
     print(agent.run(args.task, images=args.image))
     return 0
 

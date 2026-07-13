@@ -1,0 +1,9 @@
+{
+  "phase": "verification",
+  "status": "complete",
+  "automated_tests": {"passed": 40, "failed": 0, "resource_warnings_as_errors": true},
+  "pacs_tests": {"passed": 18, "real_pip_tests": 2},
+  "cli_e2e": {"success": true, "rounds": 1, "lock_and_report": true},
+  "compile_check": "passed",
+  "diff_check": "passed"
+}

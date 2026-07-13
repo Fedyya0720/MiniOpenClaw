@@ -1,0 +1,8 @@
+[
+  {"stage": "skeleton_check", "status": "complete"},
+  {"stage": "deep_interview", "status": "complete", "basis": "user requested the previously disclosed E2E gaps"},
+  {"stage": "requirement_doc", "status": "complete"},
+  {"stage": "xl_plan", "status": "complete", "internal_grade": "L"},
+  {"stage": "plan_execute", "status": "complete", "verification": "40 tests plus real PyPI and CLI E2E"},
+  {"stage": "phase_cleanup", "status": "complete"}
+]

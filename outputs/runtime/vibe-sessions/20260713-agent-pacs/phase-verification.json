@@ -1,0 +1,5 @@
+{
+  "skill_quick_validate": "passed",
+  "tests": {"passed": 43, "failed": 0, "resource_warnings_as_errors": true},
+  "diff_check": "passed"
+}
