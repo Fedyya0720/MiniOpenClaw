@@ -46,3 +46,17 @@ if __name__ == "__main__":
     a = summarize("有 system-prompt", GROUP_WITH_SYS)
     b = summarize("无 system-prompt", GROUP_NO_SYS)
     print(f"结论：system-prompt 使成功率 {b:.2f} -> {a:.2f}（Δ={a-b:+.2f}）")
+
+    # -- PACS B3 ablation: serial vs parallel (Phase 5) --
+    from eval.metrics import PACS_ABLATION_RUNS as runs, pacs_attempt_count, pacs_t_success
+    serial = [r for r in runs if r.get("mode") == "serial"]
+    parallel = [r for r in runs if r.get("mode") == "parallel"]
+    if serial and parallel:
+        s, p = serial[0], parallel[0]
+        s_att, p_att = pacs_attempt_count(s), pacs_attempt_count(p)
+        print()
+        print("=== PACS 消融：串行 vs 并行（B3）===")
+        print(f"串行基线 N_attempts  = {s_att}  ({s.get('t_success')}s)")
+        print(f"并行搜索 N_attempts  = {p_att}  ({p.get('t_success')}s)")
+        print(f"结论：并行减少 {s_att - p_att} 次尝试"
+              f"（Δ={s_att - p_att}，减少 {(s_att - p_att) / max(s_att, 1) * 100:.0f}%）")

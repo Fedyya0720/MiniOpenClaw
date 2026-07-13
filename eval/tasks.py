@@ -63,6 +63,16 @@ E2E_TASKS: list[E2ETask] = [
             "CSV 文件存在且有 10 行数据，统计概览描述了每列特征"),
     E2ETask("multi-step", "创建一个 Python 项目：main.py 调用 lib/helper.py 里的函数，写 README，用 bash 运行验证",
             "项目结构完整，运行成功，README 描述了用法"),
+    # PACS E2E tasks (Phase 5) — rubric B1 / B2
+    E2ETask("pacs-clean",
+            "用 python-env-builder 技能给这个简单项目配好环境：tests/fixtures/simple-project",
+            "env_run 报告 naive_success=true，可直接 import 项目依赖，N_attempts==1"),
+    E2ETask("pacs-conflict",
+            "用 python-env-builder 技能给这个冲突项目配好环境：tests/fixtures/torch-numpy-conflict",
+            "env_run 的 naive 候选失败，随后并行搜索找到可行组合，N_attempts < 10，最终环境能 import 所有依赖"),
+    E2ETask("pacs-serial-ablation",
+            "用 --serial 模式给同一个冲突项目配环境，和默认并行模式比较 N_attempts",
+            "并行 N_attempts < 串行 N_attempts"),
 ]
 
 # ========== Day3 下午 · 评估 harness ==========
