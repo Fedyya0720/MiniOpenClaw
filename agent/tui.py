@@ -549,7 +549,7 @@ def run_tui(backend: Any, registry: ToolRegistry, system_prompt: str, max_turns:
 
     # --- 状态栏与追踪器 ---
     status_bar = StatusBar(
-        max_turns=20,
+        max_turns=max_turns,
         token_budget=token_budget,
         price_per_1k_input=0.001,
         price_per_1k_output=0.002,
@@ -639,7 +639,7 @@ def run_tui(backend: Any, registry: ToolRegistry, system_prompt: str, max_turns:
             messages[:] = [{"role": "system", "content": system_prompt}]
             pending_images.clear()
             status_bar = StatusBar(
-                max_turns=20,
+                max_turns=max_turns,
                 token_budget=token_budget,
                 price_per_1k_input=0.001,
                 price_per_1k_output=0.002,
