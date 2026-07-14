@@ -45,6 +45,52 @@ dependencies:
 }
 ```
 
+## 镜像站点与网络回退
+
+当直接访问 PyPI / GitHub / HuggingFace 超时时，建议通过环境变量切换到国内镜像，避免重复失败：
+
+| 用途 | 环境变量 | 建议值 |
+|------|---------|--------|
+| PyPI 索引 | `PIP_INDEX_URL` | `https://pypi.tuna.tsinghua.edu.cn/simple` |
+| PyPI 信任主机 | `PIP_TRUSTED_HOST` | `pypi.tuna.tsinghua.edu.cn` |
+| HuggingFace | `HF_ENDPOINT` | `https://hf-mirror.com` |
+| GitHub 资源代理 | `GITHUB_MIRROR_PREFIX` | `https://gh-proxy.com/` |
+
+上述值仅为建议，可根据网络环境替换为其他镜像（如阿里云、中科大等）。
+
+### 使用方式
+
+**方式一：通过 `env` 参数传入 `pacs_build`**
+
+```json
+{
+  "project_path": ".",
+  "env": {
+    "PIP_INDEX_URL": "https://pypi.tuna.tsinghua.edu.cn/simple",
+    "PIP_TRUSTED_HOST": "pypi.tuna.tsinghua.edu.cn",
+    "HF_ENDPOINT": "https://hf-mirror.com",
+    "GITHUB_MIRROR_PREFIX": "https://gh-proxy.com/"
+  }
+}
+```
+
+`pacs_build` 会将这些环境变量注入子进程，pip / huggingface_hub / git 等工具会自动遵循。
+
+**方式二：运行前在 shell 中导出**
+
+```bash
+export PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+export PIP_TRUSTED_HOST=pypi.tuna.tsinghua.edu.cn
+export HF_ENDPOINT=https://hf-mirror.com
+export GITHUB_MIRROR_PREFIX=https://gh-proxy.com/
+```
+
+### 触发时机
+
+- 当 `pacs_build` 返回的网络相关错误中包含 `timeout`、`ConnectionError`、`ReadTimeout`、`ConnectTimeout` 等关键词时，自动在重试中使用镜像。
+- 用户说 "用镜像"、"换国内源"、"网络超时" 时，直接启用。
+- 镜像也超时时，尝试回退到直连，或切换其他镜像（如 `https://mirrors.aliyun.com/pypi/simple`）。
+
 ## 何时使用低层工具
 
 只有以下情况才逐个调用 `parse_deps`、`generate_combinations`、`env_*` 等工具：
