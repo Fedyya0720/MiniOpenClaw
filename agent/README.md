@@ -9,6 +9,7 @@ agent/
 ├── loop.py      # ReAct main loop (think → act → observe → repeat)
 ├── strategy.py  # Shared CLI/TUI execution and tool evidence integration
 ├── trace.py     # Tool-only durable evidence, integrity metadata, and redaction
+├── tracer.py    # Developer spans: LLM/tool latency, replay, and token cost
 ├── cli.py        # CLI entry point (python -m agent.cli)
 ├── prompts.py    # System prompt with tool catalog + skills template
 ├── context.py    # Token estimation, compaction, observation truncation
@@ -102,6 +103,27 @@ workspace; the permission layer rejects arbitrary alternate project roots.
 **Retention:** traces and context spills are local operational evidence. There is no
 automatic retention cleanup; remove `.mini-openclaw/tool-runs/` manually according to
 your project policy.
+
+### 7. Developer Observability (`tracer.py`)
+
+Each CLI/TUI ReAct run also writes a compact JSONL span trace under
+`.mini-openclaw/agent-runs/<run-id>/trace.jsonl`. LLM and tool spans include order,
+latency, success state, and redacted bounded previews; LLM spans additionally retain
+provider token usage. Raw model prose is deliberately excluded so this debugging view
+does not weaken the tool-evidence privacy boundary above.
+
+The latest non-interactive run is available as `AgentLoop.last_tracer`:
+
+```python
+from agent.tracer import replay, cost_report
+
+replay(agent.last_tracer)
+cost_report(agent.last_tracer, prompt_price_per_1k=0.001,
+            completion_price_per_1k=0.002)
+```
+
+Both helpers also accept a persisted `trace.jsonl` path. Prices are explicit estimates,
+not provider billing data.
 
 ## Verification
 

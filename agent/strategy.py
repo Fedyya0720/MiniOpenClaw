@@ -19,6 +19,7 @@ from agent.context import (
 )
 from agent.permissions import permission_observation
 from agent.trace import ToolRunTrace, redact_text
+from agent.tracer import Tracer
 
 
 @dataclass
@@ -45,6 +46,7 @@ def run_react_turns(
     confirmer: Callable[[str, dict[str, Any], str], bool] | None = None,
     callbacks: ReactCallbacks | None = None,
     trace: ToolRunTrace | None = None,
+    tracer: Tracer | None = None,
 ) -> str:
     """Run the ReAct loop on a mutable message history.
 
@@ -67,6 +69,7 @@ def run_react_turns(
             a tool requires user confirmation and ``auto_approve`` is False.
         callbacks: Optional presentation hooks.
         trace: Optional tool-only durable trace. It never receives conversation or backend payloads.
+        tracer: Optional developer trace for LLM/tool timing and token usage. Model prose is not retained.
 
     Returns:
         The final assistant content string, or a max-turns fallback message.
@@ -84,7 +87,14 @@ def run_react_turns(
             if callbacks.on_context_compacted:
                 callbacks.on_context_compacted()
 
-        assistant = backend_call(messages, tools=registry.schemas())
+        if tracer is None:
+            assistant = backend_call(messages, tools=registry.schemas())
+        else:
+            assistant = tracer.span(
+                "llm", "decide",
+                lambda: backend_call(messages, tools=registry.schemas()),
+                turn=turn,
+            )
         usage = assistant.get("usage") or {}
         last_prompt_tokens = usage.get("prompt_tokens") or 0
 
@@ -122,6 +132,12 @@ def run_react_turns(
             if tool is None:
                 obs = f"错误：未知工具 {name}"
                 status = "error"
+                if tracer is not None:
+                    tracer.record(
+                        "tool", name, obs, ok=False, turn=turn,
+                        call_index=call_idx, tool_id=call.get("id"),
+                        arguments=arguments, status=status,
+                    )
             else:
                 obs = permission_observation(
                     name, arguments, workdir,
@@ -129,9 +145,22 @@ def run_react_turns(
                 )
                 if obs is not None:
                     status = "permission_denied"
+                    if tracer is not None:
+                        tracer.record(
+                            "tool", name, obs, ok=False, turn=turn,
+                            call_index=call_idx, tool_id=call.get("id"),
+                            arguments=arguments, status=status,
+                        )
                 else:
                     try:
-                        obs = tool.run(**arguments)
+                        if tracer is None:
+                            obs = tool.run(**arguments)
+                        else:
+                            obs = tracer.span(
+                                "tool", name, lambda: tool.run(**arguments),
+                                turn=turn, call_index=call_idx,
+                                tool_id=call.get("id"), arguments=arguments,
+                            )
                     except Exception as e:  # noqa: BLE001
                         obs = f"工具执行错误（{name}）：{e}\n请检查参数并重试。"
                         status = "error"

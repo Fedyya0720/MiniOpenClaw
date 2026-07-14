@@ -38,6 +38,7 @@ from tools.base import ToolRegistry
 from agent.context import resolve_token_budget
 from agent.strategy import ReactCallbacks, run_react_turns
 from agent.trace import ToolRunTrace
+from agent.tracer import Tracer
 
 
 # ---------------------------------------------------------------------------
@@ -315,6 +316,7 @@ def _run_react_turn(
         )),
     )
 
+    tool_trace = ToolRunTrace(workdir or Path.cwd())
     run_react_turns(
         backend_call,
         registry,
@@ -326,7 +328,8 @@ def _run_react_turn(
         workdir=workdir,
         confirmer=confirmer,
         callbacks=callbacks,
-        trace=ToolRunTrace(workdir or Path.cwd()),
+        trace=tool_trace,
+        tracer=Tracer.for_run(workdir or Path.cwd(), tool_trace.run_id),
     )
 
 
