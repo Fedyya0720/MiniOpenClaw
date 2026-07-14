@@ -30,9 +30,9 @@ class _MockDisplay(DisplayManager):
         self.calls.append(("assistant", text))
         return super().render_assistant(text)
 
-    def render_tool_call(self, name: str, args: dict[str, Any]):
-        self.calls.append(("tool_call", name, args))
-        return super().render_tool_call(name, args)
+    def render_tool_call(self, name: str, args: dict[str, Any], verdict: str = "?"):
+        self.calls.append(("tool_call", name, args, verdict))
+        return super().render_tool_call(name, args, verdict)
 
     def render_tool_result(self, name: str, result: str):
         self.calls.append(("tool_result", name, result))

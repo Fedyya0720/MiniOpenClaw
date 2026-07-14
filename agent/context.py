@@ -89,6 +89,29 @@ def resolve_token_budget(
     return 8000
 
 
+def _format_messages_for_summary(messages: list[dict[str, Any]]) -> str:
+    """将一段对话历史渲染为可供 LLM 摘要的纯文本。
+
+    每条消息格式为 ``[role] content``，工具调用渲染为内联 XML，
+    工具结果截断到 2000 字符防止摘要请求本身过大。
+    """
+    lines: list[str] = []
+    for msg in messages:
+        role = msg.get("role", "unknown")
+        content = str(msg.get("content", ""))
+        # 截断长工具结果，避免摘要请求超过 token 预算
+        if role == "tool" and len(content) > 2000:
+            content = content[:2000] + f"\n...[截断，共 {len(content)} 字符]"
+        # 渲染助手消息中的工具调用
+        if role == "assistant":
+            tool_calls = msg.get("tool_calls", [])
+            if tool_calls:
+                tc_names = [tc.get("name", "?") for tc in tool_calls]
+                content = f"[调用工具: {', '.join(tc_names)}] {content}" if content else f"[调用工具: {', '.join(tc_names)}]"
+        lines.append(f"[{role}] {content}")
+    return "\n\n".join(lines)
+
+
 def maybe_compact(
     messages: list[dict[str, Any]],
     budget: int = 6000,
@@ -125,6 +148,97 @@ def maybe_compact(
     )
 
     # Keep: system + summary + last 6 messages (3 turns)
+    if system_msg:
+        compacted = [system_msg]
+        compacted.append({"role": "system", "content": summary})
+    else:
+        compacted = [{"role": "system", "content": summary}]
+
+    recent = messages[-6:] if len(messages) > 6 else messages[1:]
+    compacted.extend(recent)
+
+    return compacted
+
+
+def llm_compact(
+    messages: list[dict[str, Any]],
+    budget: int,
+    backend_call: Any,
+    *,
+    actual_tokens: int | None = None,
+) -> list[dict[str, Any]]:
+    """使用 LLM 将被压缩的对话历史总结为一段保留关键信息的摘要。
+
+    与 ``maybe_compact`` 的模板式摘要不同，本函数把中间轮次的对话发给
+    同一个后端做摘要，保留关键事实、决策、文件路径、错误与当前进度，
+    丢弃已无用的中间细节。摘要失败时回退到 ``maybe_compact`` 规则摘要。
+
+    Args:
+        messages: 当前的完整消息历史。
+        budget: token 预算阈值。
+        backend_call: 后端调用函数 ``(messages, tools) -> dict``。
+        actual_tokens: 上一次 API 返回的真实 prompt_tokens（可选）。
+
+    Returns:
+        压缩后的消息列表。
+    """
+    current = actual_tokens if actual_tokens else estimate_tokens(messages)
+    if current <= budget:
+        return messages
+
+    if len(messages) <= 3:
+        return messages
+
+    system_msg = messages[0] if messages[0].get("role") == "system" else None
+
+    # 中间区域：将要被丢弃的消息
+    middle = messages[1:-6] if len(messages) > 7 else messages[1:-2]
+    if not middle:
+        return messages
+
+    formatted = _format_messages_for_summary(middle)
+    tool_count = sum(1 for m in middle if m.get("role") == "tool")
+    turn_count = len([m for m in middle if m.get("role") in ("user", "assistant")])
+
+    summary_request = [
+        {
+            "role": "user",
+            "content": (
+                "你是一个上下文压缩助手。下面是一段 AI 智能体与用户之间较早的对话历史"
+                f"（共 {turn_count} 轮交互，{tool_count} 次工具调用）。这些消息即将从上下文中移除。\n\n"
+                "请用 3-8 句话总结这段历史，**必须保留**以下信息：\n"
+                "- 用户最初的任务目标\n"
+                "- 已完成的关键步骤和结果\n"
+                "- 已创建/修改的文件路径\n"
+                "- 遇到的错误及解决方案\n"
+                "- 当前进度和尚未完成的事项\n"
+                "- 任何在后续步骤中必须知晓的约束或决策\n\n"
+                "只输出摘要，不要加前缀或格式标记。\n\n"
+                f"{formatted}"
+            ),
+        }
+    ]
+
+    # 若未配置 API key（使用 FakeBackend）或显式关闭，直接走规则摘要
+    import os as _os
+    if _os.environ.get("MINIOPENCLAW_LLM_COMPACTION", "1") == "0":
+        return maybe_compact(messages, budget, actual_tokens)
+
+    try:
+        result = backend_call(summary_request, tools=None)
+        llm_summary = (result.get("content") or "").strip()
+        # 防御：FakeBackend 返回占位文本，不算有效摘要
+        if not llm_summary or llm_summary.startswith("[FakeBackend]"):
+            raise ValueError("LLM returned empty or fake compaction summary")
+    except Exception:
+        # LLM 摘要失败 → 回退到规则模板
+        return maybe_compact(messages, budget, actual_tokens)
+
+    summary = (
+        f"[上下文压缩 — LLM 摘要] 以下是对之前 {turn_count} 轮对话"
+        f"（{tool_count} 次工具调用）的要点总结：\n\n{llm_summary}"
+    )
+
     if system_msg:
         compacted = [system_msg]
         compacted.append({"role": "system", "content": summary})

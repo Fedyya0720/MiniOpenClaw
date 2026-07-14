@@ -213,3 +213,72 @@ def cost_report(
         if priciest:
             print(f"最贵一步: span #{priciest['seq']} ({priciest['total_tokens']} tok)")
     return report
+
+
+def build_run_summary(
+    source: Tracer | str | Path | Iterable[dict[str, Any]],
+    price_per_1k: float = 0.001,
+    *,
+    prompt_price_per_1k: float | None = None,
+    completion_price_per_1k: float | None = None,
+    status: str = "Completed",
+) -> str:
+    """Return a human-readable run summary for display after task completion.
+
+    Unlike ``cost_report``, this produces a compact multi-line panel body
+    suitable for both CLI and TUI post-run display.
+    """
+    input_price = price_per_1k if prompt_price_per_1k is None else prompt_price_per_1k
+    output_price = price_per_1k if completion_price_per_1k is None else completion_price_per_1k
+
+    events = _events(source)
+    if not events:
+        return "(no trace data)"
+
+    llm_spans = [e for e in events if e.get("kind") == "llm"]
+    tool_spans = [e for e in events if e.get("kind") == "tool"]
+    errors = [e for e in events if not e.get("ok", True)]
+    compaction_spans = [e for e in events if e.get("name") == "compact"]
+
+    total_prompt = sum(int((e.get("usage") or {}).get("prompt_tokens", 0) or 0) for e in llm_spans)
+    total_completion = sum(int((e.get("usage") or {}).get("completion_tokens", 0) or 0) for e in llm_spans)
+    total_tokens = total_prompt + total_completion
+    total_cost = total_prompt / 1000 * input_price + total_completion / 1000 * output_price
+
+    # Find the priciest LLM span
+    priciest = None
+    for e in llm_spans:
+        usage = e.get("usage") or {}
+        p = int(usage.get("prompt_tokens", 0) or 0)
+        c = int(usage.get("completion_tokens", 0) or 0)
+        cost = p / 1000 * input_price + c / 1000 * output_price
+        total = p + c
+        if priciest is None or cost > priciest["cost"]:
+            priciest = {"seq": e.get("seq"), "name": e.get("name", "?"), "total": total, "cost": cost}
+
+    # Count distinct turns
+    turns: set[int] = set()
+    for e in events:
+        turn = e.get("turn")
+        if isinstance(turn, int):
+            turns.add(turn)
+    turn_count = max(turns) + 1 if turns else 0
+
+    lines = [
+        f"Turns: {turn_count}  |  LLM calls: {len(llm_spans)}  |  Tool calls: {len(tool_spans)}",
+        f"Tokens: {total_prompt:,} prompt + {total_completion:,} completion = {total_tokens:,}",
+        f"Cost: ~${total_cost:.6f}",
+    ]
+    if priciest:
+        lines.append(
+            f"Most expensive: span #{priciest['seq']} ({priciest['name']}, "
+            f"{priciest['total']:,} tok, ${priciest['cost']:.6f})"
+        )
+    if compaction_spans:
+        lines.append(f"Compaction: triggered {len(compaction_spans)}x")
+    if errors:
+        lines.append(f"Errors: {len(errors)} step(s) failed")
+    status_icon = {"Completed": "✅", "Max turns": "⚠️", "Error": "❌"}.get(status, "•")
+    lines.append(f"Status: {status_icon} {status}")
+
+    return "\n".join(lines)

@@ -133,7 +133,7 @@ class StrategyTests(unittest.TestCase):
 
         callbacks = ReactCallbacks(
             on_assistant_message=lambda c, t: events.append(("assistant", c)),
-            on_tool_call=lambda n, a: events.append(("tool_call", n)),
+            on_tool_call=lambda n, a, v: events.append(("tool_call", n)),
             on_tool_result=lambda n, r: events.append(("tool_result", n, r)),
         )
 
@@ -188,7 +188,7 @@ class StrategyTests(unittest.TestCase):
 
         self.assertEqual(result, "done")
         self.assertEqual(events, ["compacted"])
-        self.assertTrue(any("[上下文压缩]" in str(item.get("content", "")) for item in compacted_inputs))
+        self.assertTrue(any("[上下文压缩" in str(item.get("content", "")) for item in compacted_inputs))
 
 
 if __name__ == "__main__":

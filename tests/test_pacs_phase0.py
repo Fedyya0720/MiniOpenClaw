@@ -69,6 +69,7 @@ class AutonomousModeTest(unittest.TestCase):
         class FakeLoop:
             def __init__(self, backend, registry, system_prompt, **kwargs):
                 captured.update(kwargs)
+                self.last_tracer = None
 
             def run(self, task, images=None):
                 captured["task"] = task
