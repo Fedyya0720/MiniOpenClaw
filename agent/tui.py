@@ -39,6 +39,7 @@ from agent.context import resolve_token_budget
 from agent.strategy import ReactCallbacks, run_react_turns
 from agent.trace import ToolRunTrace
 from agent.tracer import Tracer
+from backend.client import RETRYABLE_EXCEPTIONS
 
 
 # ---------------------------------------------------------------------------
@@ -242,27 +243,38 @@ def _make_backend_call(backend: Any, console: Console):
 
         if stream_fn is not None:
             content_chunks: list[str] = []
-            with Live(_initial_panel(), console=console, refresh_per_second=10, transient=True) as live:
-                for event in stream_fn(messages, tools=tools):
-                    if event["type"] == "content":
-                        content_chunks.append(event["content"])
-                        live.update(Panel(
-                            Text("".join(content_chunks), style="white"),
-                            title="Assistant",
-                            border_style="green",
-                            width=min(_term_width(), 120),
-                        ))
-                    elif event["type"] == "tool_call_start":
-                        live.update(Panel(
-                            Text(f"调用工具 {_tool_name(event['name'])}...", style="yellow"),
-                            title="Assistant",
-                            border_style="yellow",
-                            width=min(_term_width(), 120),
-                        ))
-                    elif event["type"] == "done":
-                        final_content = event["content"]
-                        tool_calls_result = event["tool_calls"]
-                        usage_result = event.get("usage") or {}
+            try:
+                with Live(_initial_panel(), console=console, refresh_per_second=10, transient=True) as live:
+                    for event in stream_fn(messages, tools=tools):
+                        if event["type"] == "content":
+                            content_chunks.append(event["content"])
+                            live.update(Panel(
+                                Text("".join(content_chunks), style="white"),
+                                title="Assistant",
+                                border_style="green",
+                                width=min(_term_width(), 120),
+                            ))
+                        elif event["type"] == "tool_call_start":
+                            live.update(Panel(
+                                Text(f"调用工具 {_tool_name(event['name'])}...", style="yellow"),
+                                title="Assistant",
+                                border_style="yellow",
+                                width=min(_term_width(), 120),
+                            ))
+                        elif event["type"] == "done":
+                            final_content = event["content"]
+                            tool_calls_result = event["tool_calls"]
+                            usage_result = event.get("usage") or {}
+            except RETRYABLE_EXCEPTIONS as exc:
+                # Preserve the ReAct run when an OpenAI-compatible gateway drops
+                # an SSE connection after a successful tool turn.
+                if not hasattr(backend, "chat"):
+                    raise
+                console.print(f"[流式通道失败，降级为非流式请求：{exc.__class__.__name__}]")
+                response = backend.chat(messages, tools=tools)
+                final_content = response.get("content", "")
+                tool_calls_result = response.get("tool_calls") or []
+                usage_result = response.get("usage") or {}
         else:
             with Live(_initial_panel(), console=console, refresh_per_second=20, transient=True) as live:
                 for event in _fake_stream(backend, messages, tools=tools):

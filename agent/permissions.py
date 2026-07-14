@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 
-READONLY = {"read", "grep", "glob"}
+READONLY = {"read", "grep", "glob", "skill"}
 WRITE = {"write", "edit"}
 EXEC = {"bash", "web_fetch"}
 
@@ -70,6 +70,9 @@ def evaluate(tool: str, args: dict[str, Any], workdir: Path) -> Decision:
         if any(part in pattern for part in PROTECTED_PARTS):
             return Decision("deny", f"禁止搜索敏感路径模式：{pattern}")
         return Decision("allow", "只读工具自动放行")
+
+    if tool == "skill":
+        return Decision("allow", "Skill 正文加载为只读操作")
 
     if tool in PACS_READONLY:
         path_arg = PACS_PATH_ARGUMENTS.get(tool)

@@ -79,6 +79,11 @@ def build_default_registry() -> ToolRegistry:
     from .memory import remember_tool
     reg.register(remember_tool)
 
+    # Skills catalog only carries names/descriptions; this read-only tool loads
+    # the selected procedural body into the current ReAct turn on demand.
+    from .skills import skill_tool
+    reg.register(skill_tool)
+
     # PACS Phase 1-4: 环境池 + 依赖解析 + 版本组合 + 失败解析 + 约束图
     from .env_tools import (
         env_create_tool, env_run_tool, env_status_tool, env_cleanup_tool,

@@ -118,6 +118,7 @@ class PermissionTests(unittest.TestCase):
 
     def test_dangerous_bash_blocked_and_normal_command_runs(self):
         self.assertIn("已被拦截", _bash("rm -rf /"))
+        self.assertIn("已被拦截", _bash("python -m pip install httpx --break-system-packages"))
         self.assertIn("hello", _bash("echo hello"))
 
     @patch("tools.shell.subprocess.run")

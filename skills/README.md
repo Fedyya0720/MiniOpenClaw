@@ -2,11 +2,13 @@
 
 ## Architecture
 
-Skills are "domain knowledge packs" — guided workflows defined in `SKILL.md` files. Unlike tools (single function calls), skills are multi-step procedural guidance injected into the system prompt.
+Skills are "domain knowledge packs" — guided workflows defined in `SKILL.md` files. Unlike tools (single function calls), skills are multi-step procedural guidance loaded on demand.
 
 ```
 skills/
 ├── loader.py              # Skill loader: parse, scan, catalog
+├── codebase-guide/
+│   └── SKILL.md           # Repository architecture audit workflow
 ├── python-debug/
 │   └── SKILL.md           # Systematic Python debugging workflow
 └── example-skill/
@@ -18,8 +20,8 @@ skills/
 | | Tool | Skill |
 |---|---|---|
 | Granularity | Single function call | Multi-step workflow |
-| Trigger | Explicit model tool_call | Model recognition from description |
-| Context | None (stateless) | Full procedural body injected when activated |
+| Trigger | Explicit model tool_call | Catalog recognition, then `skill(name)` |
+| Context | None (stateless) | Full procedural body loaded only when activated |
 | Example | `read`, `bash`, `grep` | `python-debug`, `csv-quick-report` |
 
 ## Key Design Decisions
@@ -30,17 +32,17 @@ skills/
 
 **Why:** This is the same format used by Claude Code and many LLM tools. It's human-readable, easy to author, and parseable with simple split-on-`---` logic (no YAML library dependency needed). The `name` and `description` fields serve as the "recall key" — the model reads the skill catalog and decides when a skill matches the user's task.
 
-### 2. Recall-Based Activation (Not Tool-Based)
+### 2. Catalog Recall + On-Demand Activation
 
-**Decision:** Skills are activated when the model recognizes a matching task, not by explicit tool invocation.
+**Decision:** The system prompt contains only skill names and descriptions. When one matches the task, the model calls the read-only `skill(name)` tool before following its workflow.
 
-**Why:** Skills are guidance, not actions. The model reads the catalog in the system prompt, recognizes "this looks like a Python debugging task," and follows the skill's procedural steps using the existing tool set. This is simpler than implementing a `use_skill` tool and avoids the "tool calling a tool" nesting problem.
+**Why:** This makes activation visible in the trace and avoids paying the context cost of every skill body on every turn. The returned Markdown is still guidance; execution continues through normal tools.
 
 ### 3. Runtime Injection via `{skills_catalog}`
 
-**Decision:** `skills_catalog()` renders `- name: description` lines into the system prompt's `{skills_catalog}` slot.
+**Decision:** `skills_catalog()` renders `- name: description` lines into the system prompt's `{skills_catalog}` slot; `tools/skills.py` resolves and returns the selected body.
 
-**Why:** The system prompt is the model's only persistent context. Injecting skill descriptions here means they're always available for recall. The `build_system_prompt()` function in `agent/prompts.py` accepts the catalog text and formats it with a section header.
+**Why:** Descriptions remain available for recall while bodies stay out of context until needed. The `build_system_prompt()` function also instructs the model to load a matching skill before domain work.
 
 ### 4. Fallback Name from Directory
 

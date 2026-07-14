@@ -151,6 +151,45 @@ class StrategyTests(unittest.TestCase):
             ("assistant", "final"),
         ])
 
+    def test_actual_prompt_usage_triggers_context_compaction(self):
+        calls = 0
+        compacted_inputs = []
+
+        def backend_call(messages, tools):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                return {
+                    "content": "",
+                    "tool_calls": [{"id": "t1", "name": "echo", "arguments": {}}],
+                    "usage": {"prompt_tokens": 1_000, "completion_tokens": 10, "total_tokens": 1_010},
+                }
+            compacted_inputs.extend(messages)
+            return {"content": "done", "tool_calls": []}
+
+        events = []
+        callbacks = ReactCallbacks(on_context_compacted=lambda: events.append("compacted"))
+        messages = [
+            {"role": "system", "content": "sys"},
+            {"role": "user", "content": "old user"},
+            {"role": "assistant", "content": "old assistant"},
+            {"role": "tool", "content": "old observation"},
+        ]
+
+        result = run_react_turns(
+            backend_call,
+            self._make_registry(),
+            messages,
+            token_budget=100,
+            auto_approve=True,
+            callbacks=callbacks,
+            workdir=ROOT,
+        )
+
+        self.assertEqual(result, "done")
+        self.assertEqual(events, ["compacted"])
+        self.assertTrue(any("[上下文压缩]" in str(item.get("content", "")) for item in compacted_inputs))
+
 
 if __name__ == "__main__":
     unittest.main()
