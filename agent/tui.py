@@ -450,7 +450,7 @@ def _run_react_turn(
 # 主入口
 # ---------------------------------------------------------------------------
 
-def run_tui(backend: Any, registry: ToolRegistry, system_prompt: str,
+def run_tui(backend: Any, registry: ToolRegistry, system_prompt: str, max_turns: int = 20,
             auto_approve: bool = False, workdir: Path | None = None) -> None:
     """启动交互式 TUI REPL。
 
@@ -748,6 +748,7 @@ def run_tui(backend: Any, registry: ToolRegistry, system_prompt: str,
         try:
             tracer = _run_react_turn(
                 backend, registry, messages, display, console,
+                max_turns=max_turns,
                 token_budget=token_budget,
                 auto_approve=auto_approve,
                 confirmer=None if auto_approve else confirm_tool,

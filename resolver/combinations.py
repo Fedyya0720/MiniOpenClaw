@@ -7,6 +7,7 @@ is prepared: the ``constraints`` parameter already gates every pair.
 """
 from __future__ import annotations
 
+import concurrent.futures
 import itertools
 import subprocess
 import sys
@@ -24,6 +25,12 @@ _VERSION_CACHE: dict[str, list[str]] = {}
 # versions = 1000 combos; we cap via ``max_candidates``, so keeping a
 # manageable pool per package avoids exhausting the product iterator.
 _TOP_VERSIONS = 10
+
+# Max parallel pip index versions calls.
+_MAX_WORKERS = 5
+
+# Total timeout (seconds) for fetching all packages' version lists.
+_FETCH_TOTAL_TIMEOUT = 60
 
 # Injected by tests so that combination logic can be exercised without live
 # network or a real package index.  Accepts a package name and returns a
@@ -69,7 +76,7 @@ def _fetch_versions(package: str) -> list[str]:
     try:
         completed = subprocess.run(
             [sys.executable, "-m", "pip", "index", "versions", package],
-            capture_output=True, text=True, timeout=30,
+            capture_output=True, text=True, timeout=15,
             shell=False,
         )
     except (subprocess.TimeoutExpired, OSError):
@@ -152,9 +159,36 @@ def generate_combinations(
     # -- Fetch & filter versions per package ----------------------------------
     per_package: dict[str, list[str]] = {}
     warnings: list[str] = []
+
+    # Fetch all packages in parallel to avoid N sequential pip calls.
+    fetched: dict[str, list[str]] = {}
+    if searchable:
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=min(_MAX_WORKERS, len(searchable)),
+        ) as executor:
+            future_map = {
+                executor.submit(_fetch_versions, dep["name"]): dep["name"]
+                for dep in searchable
+            }
+            try:
+                for future in concurrent.futures.as_completed(
+                    future_map, timeout=_FETCH_TOTAL_TIMEOUT,
+                ):
+                    name = future_map[future]
+                    try:
+                        fetched[name] = future.result()
+                    except Exception:
+                        fetched[name] = []
+            except concurrent.futures.TimeoutError:
+                # Some fetches didn't finish in time — mark remaining as empty.
+                for future, name in future_map.items():
+                    if not future.done():
+                        future.cancel()
+                        fetched[name] = []
+
     for dep in searchable:
         name = dep["name"]
-        all_versions = _fetch_versions(name)
+        all_versions = fetched.get(name, [])
         specifier = dep.get("specifier", "")
         if specifier:
             filtered = [v for v in all_versions if matches(v, specifier)]
