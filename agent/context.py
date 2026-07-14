@@ -24,6 +24,7 @@ KNOWN_CONTEXT_WINDOWS: dict[str, int] = {
     "deepseek-coder": 64_000,
     "deepseek-reasoner": 64_000,
     "deepseek-v4-flash": 1_000_000,
+    "kimi-k2.6": 200_000,
 }
 
 # 给 completion / 系统开销预留 10% 安全边际。
@@ -37,9 +38,37 @@ _EMERGENCY_OBSERVATION_CAP = 1_000_000
 _DEFAULT_SPILL_THRESHOLD = 8_000
 
 
+# Per-image token estimate.  Images are resized to max 1568px long side by
+# image_util._resize_image.  For a 1568×1568 image, OpenAI-compatible vision
+# APIs typically consume 85–255 tokens depending on detail level.  We use a
+# conservative estimate that errs slightly high to avoid under-counting.
+_ESTIMATED_TOKENS_PER_IMAGE = 255
+
+
 def estimate_tokens(messages: list[dict[str, Any]]) -> int:
-    """Rough token estimate: chars / 4 (standard heuristic, close enough for most models)."""
-    return sum(len(str(m.get("content", ""))) for m in messages) // 4
+    """Rough token estimate.
+
+    For text content, uses chars / 4 (standard heuristic, close enough for
+    most models).  For multimodal content (list of content blocks), counts
+    text blocks with the chars/4 heuristic and image blocks with a fixed
+    per-image estimate, avoiding the enormous over-estimate that would result
+    from ``str(list_of_blocks)`` including base64 data.
+    """
+    total = 0
+    for m in messages:
+        content = m.get("content", "")
+        if isinstance(content, list):
+            for block in content:
+                if isinstance(block, dict) and block.get("type") == "image":
+                    total += _ESTIMATED_TOKENS_PER_IMAGE
+                elif isinstance(block, dict) and block.get("type") == "text":
+                    total += len(block.get("text", "")) // 4
+                else:
+                    # Unknown block type — fall back to repr length / 4
+                    total += len(str(block)) // 4
+        else:
+            total += len(str(content)) // 4
+    return total
 
 
 def resolve_token_budget(
