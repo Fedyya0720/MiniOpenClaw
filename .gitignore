@@ -6,4 +6,11 @@ out-*/
 *.gguf
 .DS_Store
 .env
+demo/pacs_demo/work/
+.mini-openclaw/
+
+# Day10 本地展示材料：包含现场讲稿和本机实测记录，永不提交。
+docs/DAY10_DEMO_SCRIPT.md
+docs/reports/2026-07-14-day10-live-validation.md
+.miniopenclaw_envs/
 .mini-openclaw/

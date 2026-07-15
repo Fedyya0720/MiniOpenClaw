@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 from typing import Any
 
+import httpx
 from rich.console import Console
 
 from agent.tui import DisplayManager, _run_react_turn
@@ -29,9 +30,9 @@ class _MockDisplay(DisplayManager):
         self.calls.append(("assistant", text))
         return super().render_assistant(text)
 
-    def render_tool_call(self, name: str, args: dict[str, Any]):
-        self.calls.append(("tool_call", name, args))
-        return super().render_tool_call(name, args)
+    def render_tool_call(self, name: str, args: dict[str, Any], verdict: str = "?"):
+        self.calls.append(("tool_call", name, args, verdict))
+        return super().render_tool_call(name, args, verdict)
 
     def render_tool_result(self, name: str, result: str):
         self.calls.append(("tool_result", name, result))
@@ -64,6 +65,21 @@ class _StreamingBackend:
             "tool_calls": [
                 {"id": "tc1", "name": self._tool_name, "arguments": self._arguments}
             ],
+        }
+
+
+class _FailingStreamBackend:
+    model = "test-fallback"
+
+    def chat_stream(self, messages, tools=None):
+        raise httpx.ConnectError("stream dropped")
+        yield  # pragma: no cover - make this function a generator
+
+    def chat(self, messages, tools=None):
+        return {
+            "content": "fallback answer",
+            "tool_calls": [],
+            "usage": {"prompt_tokens": 4, "completion_tokens": 2, "total_tokens": 6},
         }
 
 
@@ -125,6 +141,16 @@ class TuiWrapperTests(unittest.TestCase):
 
         tool_msg = next(m for m in messages if m["role"] == "tool")
         self.assertIn("未知工具", tool_msg["content"])
+
+    def test_retryable_stream_error_falls_back_to_non_streaming_chat(self):
+        messages = [{"role": "system", "content": "sys"}]
+        display, messages = self._run(_FailingStreamBackend(), ToolRegistry(), messages)
+
+        self.assertEqual(messages[-1]["content"], "fallback answer")
+        self.assertTrue(any(
+            call[0] == "assistant" and call[1] == "fallback answer"
+            for call in display.calls
+        ))
 
 
 if __name__ == "__main__":

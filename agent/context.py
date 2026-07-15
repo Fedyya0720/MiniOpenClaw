@@ -24,21 +24,51 @@ KNOWN_CONTEXT_WINDOWS: dict[str, int] = {
     "deepseek-coder": 64_000,
     "deepseek-reasoner": 64_000,
     "deepseek-v4-flash": 1_000_000,
+    "kimi-k2.6": 200_000,
 }
 
 # 给 completion / 系统开销预留 10% 安全边际。
 _CONTEXT_SAFETY_MARGIN = 0.9
 
-# 最终安全网：即使 spill 逻辑被绕过，单条 observation 也不允许超过 100 万字符。
+# Final fallback for callers that explicitly request truncation. Normal spill
+# artifacts are deliberately never capped: they are durable evidence, not context.
 _EMERGENCY_OBSERVATION_CAP = 1_000_000
 
 # 默认 spill 阈值：超过该字符数就写入文件。
 _DEFAULT_SPILL_THRESHOLD = 8_000
 
 
+# Per-image token estimate.  Images are resized to max 1568px long side by
+# image_util._resize_image.  For a 1568×1568 image, OpenAI-compatible vision
+# APIs typically consume 85–255 tokens depending on detail level.  We use a
+# conservative estimate that errs slightly high to avoid under-counting.
+_ESTIMATED_TOKENS_PER_IMAGE = 255
+
+
 def estimate_tokens(messages: list[dict[str, Any]]) -> int:
-    """Rough token estimate: chars / 4 (standard heuristic, close enough for most models)."""
-    return sum(len(str(m.get("content", ""))) for m in messages) // 4
+    """Rough token estimate.
+
+    For text content, uses chars / 4 (standard heuristic, close enough for
+    most models).  For multimodal content (list of content blocks), counts
+    text blocks with the chars/4 heuristic and image blocks with a fixed
+    per-image estimate, avoiding the enormous over-estimate that would result
+    from ``str(list_of_blocks)`` including base64 data.
+    """
+    total = 0
+    for m in messages:
+        content = m.get("content", "")
+        if isinstance(content, list):
+            for block in content:
+                if isinstance(block, dict) and block.get("type") == "image":
+                    total += _ESTIMATED_TOKENS_PER_IMAGE
+                elif isinstance(block, dict) and block.get("type") == "text":
+                    total += len(block.get("text", "")) // 4
+                else:
+                    # Unknown block type — fall back to repr length / 4
+                    total += len(str(block)) // 4
+        else:
+            total += len(str(content)) // 4
+    return total
 
 
 def resolve_token_budget(
@@ -86,6 +116,29 @@ def resolve_token_budget(
                 return int(window * _CONTEXT_SAFETY_MARGIN)
 
     return 8000
+
+
+def _format_messages_for_summary(messages: list[dict[str, Any]]) -> str:
+    """将一段对话历史渲染为可供 LLM 摘要的纯文本。
+
+    每条消息格式为 ``[role] content``，工具调用渲染为内联 XML，
+    工具结果截断到 2000 字符防止摘要请求本身过大。
+    """
+    lines: list[str] = []
+    for msg in messages:
+        role = msg.get("role", "unknown")
+        content = str(msg.get("content", ""))
+        # 截断长工具结果，避免摘要请求超过 token 预算
+        if role == "tool" and len(content) > 2000:
+            content = content[:2000] + f"\n...[截断，共 {len(content)} 字符]"
+        # 渲染助手消息中的工具调用
+        if role == "assistant":
+            tool_calls = msg.get("tool_calls", [])
+            if tool_calls:
+                tc_names = [tc.get("name", "?") for tc in tool_calls]
+                content = f"[调用工具: {', '.join(tc_names)}] {content}" if content else f"[调用工具: {', '.join(tc_names)}]"
+        lines.append(f"[{role}] {content}")
+    return "\n\n".join(lines)
 
 
 def maybe_compact(
@@ -136,6 +189,97 @@ def maybe_compact(
     return compacted
 
 
+def llm_compact(
+    messages: list[dict[str, Any]],
+    budget: int,
+    backend_call: Any,
+    *,
+    actual_tokens: int | None = None,
+) -> list[dict[str, Any]]:
+    """使用 LLM 将被压缩的对话历史总结为一段保留关键信息的摘要。
+
+    与 ``maybe_compact`` 的模板式摘要不同，本函数把中间轮次的对话发给
+    同一个后端做摘要，保留关键事实、决策、文件路径、错误与当前进度，
+    丢弃已无用的中间细节。摘要失败时回退到 ``maybe_compact`` 规则摘要。
+
+    Args:
+        messages: 当前的完整消息历史。
+        budget: token 预算阈值。
+        backend_call: 后端调用函数 ``(messages, tools) -> dict``。
+        actual_tokens: 上一次 API 返回的真实 prompt_tokens（可选）。
+
+    Returns:
+        压缩后的消息列表。
+    """
+    current = actual_tokens if actual_tokens else estimate_tokens(messages)
+    if current <= budget:
+        return messages
+
+    if len(messages) <= 3:
+        return messages
+
+    system_msg = messages[0] if messages[0].get("role") == "system" else None
+
+    # 中间区域：将要被丢弃的消息
+    middle = messages[1:-6] if len(messages) > 7 else messages[1:-2]
+    if not middle:
+        return messages
+
+    formatted = _format_messages_for_summary(middle)
+    tool_count = sum(1 for m in middle if m.get("role") == "tool")
+    turn_count = len([m for m in middle if m.get("role") in ("user", "assistant")])
+
+    summary_request = [
+        {
+            "role": "user",
+            "content": (
+                "你是一个上下文压缩助手。下面是一段 AI 智能体与用户之间较早的对话历史"
+                f"（共 {turn_count} 轮交互，{tool_count} 次工具调用）。这些消息即将从上下文中移除。\n\n"
+                "请用 3-8 句话总结这段历史，**必须保留**以下信息：\n"
+                "- 用户最初的任务目标\n"
+                "- 已完成的关键步骤和结果\n"
+                "- 已创建/修改的文件路径\n"
+                "- 遇到的错误及解决方案\n"
+                "- 当前进度和尚未完成的事项\n"
+                "- 任何在后续步骤中必须知晓的约束或决策\n\n"
+                "只输出摘要，不要加前缀或格式标记。\n\n"
+                f"{formatted}"
+            ),
+        }
+    ]
+
+    # 若未配置 API key（使用 FakeBackend）或显式关闭，直接走规则摘要
+    import os as _os
+    if _os.environ.get("MINIOPENCLAW_LLM_COMPACTION", "1") == "0":
+        return maybe_compact(messages, budget, actual_tokens)
+
+    try:
+        result = backend_call(summary_request, tools=None)
+        llm_summary = (result.get("content") or "").strip()
+        # 防御：FakeBackend 返回占位文本，不算有效摘要
+        if not llm_summary or llm_summary.startswith("[FakeBackend]"):
+            raise ValueError("LLM returned empty or fake compaction summary")
+    except Exception:
+        # LLM 摘要失败 → 回退到规则模板
+        return maybe_compact(messages, budget, actual_tokens)
+
+    summary = (
+        f"[上下文压缩 — LLM 摘要] 以下是对之前 {turn_count} 轮对话"
+        f"（{tool_count} 次工具调用）的要点总结：\n\n{llm_summary}"
+    )
+
+    if system_msg:
+        compacted = [system_msg]
+        compacted.append({"role": "system", "content": summary})
+    else:
+        compacted = [{"role": "system", "content": summary}]
+
+    recent = messages[-6:] if len(messages) > 6 else messages[1:]
+    compacted.extend(recent)
+
+    return compacted
+
+
 def truncate_observation(text: str, max_chars: int = _EMERGENCY_OBSERVATION_CAP) -> str:
     """工具结果过长时的最终安全截断（仅作为兜底）。"""
     if len(text) <= max_chars:
@@ -144,11 +288,23 @@ def truncate_observation(text: str, max_chars: int = _EMERGENCY_OBSERVATION_CAP)
 
 
 def _spill_dir(workdir: Path) -> Path:
-    """返回 spill 根目录（工作区内的隐藏目录）。"""
+    """Return a validated spill root beneath the workspace.
+
+    A custom directory is allowed only when it resolves inside ``workdir``;
+    invalid configuration falls back to the normal project-local location.
+    """
+    default = workdir / ".mini-openclaw" / "spill"
     custom = os.getenv("MINIOPENCLAW_SPILL_DIR")
-    if custom:
-        return workdir / custom
-    return workdir / ".mini-openclaw" / "spill"
+    if not custom:
+        return default
+    candidate = Path(custom).expanduser()
+    if not candidate.is_absolute():
+        candidate = workdir / candidate
+    try:
+        candidate.resolve(strict=False).relative_to(workdir.resolve())
+    except (OSError, ValueError):
+        return default
+    return candidate
 
 
 def _make_spill_filename(tool_name: str, turn: int | None, call_idx: int | None) -> str:
@@ -179,21 +335,45 @@ def _extract_stderr(text: str) -> list[str]:
     return [line for line in m.group(1).splitlines() if line.strip()]
 
 
-def _summarize_spilled(text: str, tool_name: str) -> str:
-    """为已写入文件的长输出生成规则摘要。"""
-    lines = [line for line in text.splitlines() if line.strip()]
-    total_lines = len(text.splitlines())
-    total_chars = len(text)
-    total_bytes = len(text.encode("utf-8"))
+def _summarize_spilled(
+    original: str, stored: str, tool_name: str, *, redacted: bool, sensitive_retention: bool,
+) -> str:
+    """Summarize a spill without reintroducing sensitive content into context."""
+    # Import lazily: trace imports no context code, and context remains usable on its own.
+    from agent.trace import content_metadata
+
+    metadata = content_metadata(original, stored)
+    lines = [line for line in stored.splitlines() if line.strip()]
+    total_lines = len(original.splitlines())
+    stored_lines = len(stored.splitlines())
 
     parts = [f"- 工具：{tool_name}"]
-    parts.append(f"- 共 {total_lines} 行，{total_chars} 字符，{total_bytes} 字节")
+    parts.append(
+        "- 原始内容：{original_chars} 字符，{original_utf8_bytes} 字节，SHA-256: {original_sha256}".format(
+            **metadata
+        )
+    )
+    parts.append(
+        "- 存储内容：{stored_chars} 字符，{stored_utf8_bytes} 字节，SHA-256: {stored_sha256}".format(
+            **metadata
+        )
+    )
+    parts.append(
+        f"- 原始 {total_lines} 行；存储 {stored_lines} 行；已脱敏：{'是' if redacted else '否'}"
+    )
+    if sensitive_retention:
+        parts.append("- 敏感内容保留：是（MINIOPENCLAW_TRACE_SENSITIVE=1；摘要不展示其内容）")
 
-    returncode = _extract_returncode(text)
+    returncode = _extract_returncode(stored)
     if returncode is not None:
         parts.append(f"- 退出码：{returncode}")
 
-    stderr_lines = _extract_stderr(text)
+    # A forensic spill can retain the original data on disk, but context must
+    # never replay it.  Redacted output can be previewed safely.
+    if redacted or sensitive_retention:
+        return "\n".join(parts)
+
+    stderr_lines = _extract_stderr(stored)
     if stderr_lines:
         parts.append("- stderr 输出：")
         for line in stderr_lines[:5]:
@@ -201,7 +381,6 @@ def _summarize_spilled(text: str, tool_name: str) -> str:
         if len(stderr_lines) > 5:
             parts.append(f"    ...（stderr 共 {len(stderr_lines)} 行）")
 
-    # 错误 / 异常关键字行
     error_re = re.compile(r"error|exception|traceback|failed|fatal", re.IGNORECASE)
     error_lines = [line for line in lines if error_re.search(line)]
     if error_lines:
@@ -211,7 +390,6 @@ def _summarize_spilled(text: str, tool_name: str) -> str:
         if len(error_lines) > 5:
             parts.append(f"    ...（共 {len(error_lines)} 处）")
 
-    # 头尾片段
     if len(lines) > 10:
         parts.append("- 开头 5 行：")
         for line in lines[:5]:
@@ -235,15 +413,11 @@ def spill_observation(
     call_idx: int | None = None,
     threshold: int | None = None,
 ) -> str:
-    """如果工具输出过长，将其写入文件并返回文件路径 + 摘要。
+    """Persist a large observation under the workspace and return a safe pointer.
 
-    参数：
-      text: 原始工具输出。
-      tool_name: 工具名，用于文件名和摘要。
-      workdir: 工作目录，spill 文件会写在该目录下。
-      turn: 当前轮次编号，用于文件名。
-      call_idx: 当前工具调用在轮次中的序号，用于文件名。
-      threshold: 触发 spill 的字符阈值；None 则读取环境变量或默认值。
+    By default the persisted form follows ``agent.trace`` redaction.  Set
+    ``MINIOPENCLAW_TRACE_SENSITIVE=1`` only for an intentional forensic case;
+    even then, the context summary never previews sensitive content.
     """
     text = str(text)
     if threshold is None:
@@ -255,12 +429,24 @@ def spill_observation(
     if len(text) <= threshold:
         return text
 
-    # 最终安全网：超大规模输出仍先截断到应急上限再写入文件。
-    text = truncate_observation(text, _EMERGENCY_OBSERVATION_CAP)
+    # Lazy imports avoid a trace/context import cycle while guaranteeing that
+    # trace artifacts and generic spills share one default redaction policy.
+    from agent.trace import redact_text, sensitive_retention_enabled
+
+    stored, sensitive = redact_text(text)
+    retained = sensitive_retention_enabled()
+    if sensitive and retained:
+        stored = text
 
     spill_root = _spill_dir(workdir)
     filename = _make_spill_filename(tool_name, turn, call_idx)
-    relative_path = str(Path(".") / spill_root.relative_to(workdir) / filename)
+    try:
+        relative_root = spill_root.resolve(strict=False).relative_to(workdir.resolve())
+    except (OSError, ValueError):
+        # Defensive fallback if a path changes between validation and use.
+        spill_root = workdir / ".mini-openclaw" / "spill"
+        relative_root = spill_root.relative_to(workdir)
+    relative_path = str(Path(".") / relative_root / filename)
     resolved = resolve_write_path(relative_path, workdir)
     if resolved.startswith("⚠️") or resolved.startswith("错误："):
         # 沙箱阻止写入：回退到截断
@@ -269,11 +455,24 @@ def spill_observation(
     abs_path = Path(resolved)
     try:
         abs_path.parent.mkdir(parents=True, exist_ok=True)
-        abs_path.write_text(text, encoding="utf-8")
+        for parent in (workdir / ".mini-openclaw", abs_path.parent):
+            try:
+                parent.chmod(0o700)
+            except OSError:
+                pass
+        abs_path.write_text(stored, encoding="utf-8")
+        try:
+            abs_path.chmod(0o600)
+        except OSError:
+            pass
     except OSError:
-        return truncate_observation(text, threshold)
+        return truncate_observation(stored, threshold)
 
-    summary = _summarize_spilled(text, tool_name)
+    summary = _summarize_spilled(
+        text, stored, tool_name,
+        redacted=bool(sensitive and not retained),
+        sensitive_retention=bool(sensitive and retained),
+    )
     return (
         f"[工具输出较长，已写入文件：{relative_path}]\n"
         f"摘要：\n{summary}\n"

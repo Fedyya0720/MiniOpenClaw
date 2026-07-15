@@ -30,6 +30,7 @@ mini-OpenClaw 是一个 Claude Code 式的命令行 Agent：
 | `tools/` | read/write/bash → edit/grep/glob → web_fetch/task_list | Day5, Day6, Day7 |
 | `mcp/` | 最小 MCP 客户端（stdio + JSON-RPC）| Day8 |
 | `skills/` | Skills 加载器 + 你领域的 Skill | Day9 |
+| `pacs/` | Python 依赖候选搜索、并行验证、失败学习与环境固化 | 扩展子系统 |
 | `eval/` | 任务集 + 指标评测 + 消融 | Day7, Day10 |
 
 > 逐日构建目标详见各 `course/dayNN/lab-guide.md`；`grep -rn "TODO\[Day" .` 可看全部施工点。
@@ -58,6 +59,11 @@ python -m agent.cli --selfcheck
 - **v1（Day6）**：`python -m agent.cli "创建 hello.py 并运行输出当前时间"` 能完成。
 - **v3（Day9）**：能加载 MCP server 工具 + 自定义 Skill。
 - **终版（Day10）**：含安全层，Demo Day 现场任务。
+
+## 测试
+
+测试环境、单项回归、完整测试、PACS 离线测试和真实 TUI 验收步骤见
+[`docs/TESTING.md`](docs/TESTING.md)。
 
 ## 约定
 

@@ -56,8 +56,10 @@ def parse_skill_md(text: str, path: Path) -> Skill:
     return Skill(name=name, description=description, body=body, path=path)
 
 
-def load_skills(root: str = "skills") -> list[Skill]:
+def load_skills(root: str | Path | None = None) -> list[Skill]:
     """扫描 root 下所有 SKILL.md。"""
+    if root is None:
+        root = Path(__file__).resolve().parent
     skills: list[Skill] = []
     for md in Path(root).glob("*/SKILL.md"):
         skills.append(parse_skill_md(md.read_text(encoding="utf-8"), md))

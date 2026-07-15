@@ -13,12 +13,14 @@ from typing import Any, Callable
 from tools.base import ToolRegistry
 from agent.context import (
     estimate_tokens,
+    llm_compact,
     maybe_compact,
     resolve_token_budget,
     spill_observation,
-    truncate_observation,
 )
 from agent.permissions import permission_observation
+from agent.trace import ToolRunTrace, redact_text
+from agent.tracer import Tracer
 
 
 @dataclass
@@ -26,9 +28,16 @@ class ReactCallbacks:
     """Optional hooks for callers to observe loop events."""
 
     on_context_compacted: Callable[[], None] | None = None
+    on_context_compacted_detailed: Callable[[int, int, int, int], None] | None = None
+    # ^ (turns_compacted, tool_calls_compacted, tokens_before, tokens_after)
     on_assistant_message: Callable[[str, list[dict[str, Any]]], None] | None = None
-    on_tool_call: Callable[[str, dict[str, Any]], None] | None = None
+    on_tool_call: Callable[[str, dict[str, Any], str], None] | None = None
+    # ^ third arg: permission verdict ("allow", "confirm", "deny")
     on_tool_result: Callable[[str, str], None] | None = None
+    on_turn_complete: Callable[[int, int, dict[str, int] | None], None] | None = None
+    # ^ (turn, estimated_tokens, last_usage_dict)
+    on_output_spilled: Callable[[str, str, int], None] | None = None
+    # ^ (tool_name, spill_path, char_count)
     on_max_turns_reached: Callable[[], None] | None = None
 
 
@@ -44,6 +53,8 @@ def run_react_turns(
     workdir: Path | None = None,
     confirmer: Callable[[str, dict[str, Any], str], bool] | None = None,
     callbacks: ReactCallbacks | None = None,
+    trace: ToolRunTrace | None = None,
+    tracer: Tracer | None = None,
 ) -> str:
     """Run the ReAct loop on a mutable message history.
 
@@ -65,6 +76,8 @@ def run_react_turns(
         confirmer: Callable ``(tool_name, args, reason) -> bool`` invoked when
             a tool requires user confirmation and ``auto_approve`` is False.
         callbacks: Optional presentation hooks.
+        trace: Optional tool-only durable trace. It never receives conversation or backend payloads.
+        tracer: Optional developer trace for LLM/tool timing and token usage. Model prose is not retained.
 
     Returns:
         The final assistant content string, or a max-turns fallback message.
@@ -78,11 +91,25 @@ def run_react_turns(
     for turn in range(max_turns):
         estimated = estimate_tokens(messages)
         if (last_prompt_tokens and last_prompt_tokens > token_budget) or estimated > token_budget:
-            messages[:] = maybe_compact(messages, token_budget, actual_tokens=last_prompt_tokens or estimated)
+            tokens_before = last_prompt_tokens or estimated
+            messages[:] = llm_compact(messages, token_budget, backend_call, actual_tokens=tokens_before)
+            tokens_after = estimate_tokens(messages)
             if callbacks.on_context_compacted:
                 callbacks.on_context_compacted()
+            if callbacks.on_context_compacted_detailed:
+                middle_turns = max(0, (len(messages) - 7) // 2) if len(messages) > 7 else max(0, len(messages) - 3)
+                callbacks.on_context_compacted_detailed(
+                    middle_turns, 0, tokens_before, tokens_after,
+                )
 
-        assistant = backend_call(messages, tools=registry.schemas())
+        if tracer is None:
+            assistant = backend_call(messages, tools=registry.schemas())
+        else:
+            assistant = tracer.span(
+                "llm", "decide",
+                lambda: backend_call(messages, tools=registry.schemas()),
+                turn=turn,
+            )
         usage = assistant.get("usage") or {}
         last_prompt_tokens = usage.get("prompt_tokens") or 0
 
@@ -106,27 +133,74 @@ def run_react_turns(
             name = call["name"]
             arguments = call.get("arguments", {})
 
+            # Compute permission verdict before notifying callbacks
+            from agent.permissions import evaluate as eval_perm
+            perm_verdict = eval_perm(name, arguments, workdir).verdict
+
             if callbacks.on_tool_call:
-                callbacks.on_tool_call(name, arguments)
+                callbacks.on_tool_call(name, arguments, perm_verdict)
+
+            if trace is not None:
+                trace.record_tool_call(
+                    turn=turn, call_index=call_idx, name=name,
+                    tool_id=call.get("id"), arguments=arguments,
+                )
 
             tool = registry.get(name)
+            status = "ok"
             if tool is None:
                 obs = f"错误：未知工具 {name}"
+                status = "error"
+                if tracer is not None:
+                    tracer.record(
+                        "tool", name, obs, ok=False, turn=turn,
+                        call_index=call_idx, tool_id=call.get("id"),
+                        arguments=arguments, status=status,
+                    )
             else:
                 obs = permission_observation(
                     name, arguments, workdir,
                     auto_approve=auto_approve, confirmer=confirmer,
                 )
-                if obs is None:
+                if obs is not None:
+                    status = "permission_denied"
+                    if tracer is not None:
+                        tracer.record(
+                            "tool", name, obs, ok=False, turn=turn,
+                            call_index=call_idx, tool_id=call.get("id"),
+                            arguments=arguments, status=status,
+                        )
+                else:
                     try:
-                        obs = tool.run(**arguments)
+                        if tracer is None:
+                            obs = tool.run(**arguments)
+                        else:
+                            obs = tracer.span(
+                                "tool", name, lambda: tool.run(**arguments),
+                                turn=turn, call_index=call_idx,
+                                tool_id=call.get("id"), arguments=arguments,
+                            )
                     except Exception as e:  # noqa: BLE001
                         obs = f"工具执行错误（{name}）：{e}\n请检查参数并重试。"
+                        status = "error"
+
+            raw_observation = str(obs)
+            if trace is not None:
+                trace.record_tool_result(
+                    turn=turn, call_index=call_idx, name=name,
+                    tool_id=call.get("id"), result=raw_observation, status=status,
+                )
 
             obs = spill_observation(
-                str(obs), name, workdir,
+                raw_observation, name, workdir,
                 turn=turn, call_idx=call_idx, threshold=spill_threshold,
-            ) or truncate_observation(str(obs))
+            )
+            if obs != raw_observation:
+                # Context is not forensic storage. Default summaries avoid replaying
+                # credentials even though the trace keeps integrity metadata.
+                obs, _ = redact_text(obs)
+                if callbacks.on_output_spilled:
+                    callbacks.on_output_spilled(name, obs, len(raw_observation))
 
             if callbacks.on_tool_result:
                 callbacks.on_tool_result(name, obs)
@@ -137,6 +211,9 @@ def run_react_turns(
                 "tool_call_id": call.get("id"),
                 "content": obs,
             })
+
+            if callbacks.on_turn_complete:
+                callbacks.on_turn_complete(turn, estimate_tokens(messages), usage)
 
     if callbacks.on_max_turns_reached:
         callbacks.on_max_turns_reached()

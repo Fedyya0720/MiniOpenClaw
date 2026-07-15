@@ -111,6 +111,90 @@ def json_valid_rate(records: list[dict]) -> float:
                 pass
     return ok / max(total, 1)
 
+# -- PACS metrics (Phase 5) --------------------------------------------------
+
+
+def pacs_attempt_count(run: dict[str, Any]) -> int:
+    """Number of install attempts to reach first success (the load-bearing B3 metric)."""
+    return int(run.get("n_attempts", 0) or 0)
+
+
+def pacs_t_success(run: dict[str, Any]) -> float | None:
+    """Wall-clock seconds from task submission to first working environment."""
+    t = run.get("t_success")
+    return float(t) if t is not None else None
+
+
+def pacs_coverage(runs: list[dict[str, Any]]) -> float:
+    """Fraction of projects for which a working environment was produced."""
+    ok = sum(1 for r in runs if r.get("success"))
+    return ok / max(len(runs), 1)
+
+
+def pacs_reuse_rate(runs: list[dict[str, Any]]) -> float:
+    """Fraction of known constraints reused vs freshly probed (ideally > 0 on second run)."""
+    total = sum(int(r.get("n_attempts", 0) or 0) for r in runs)
+    reused = sum(int(r.get("constraints_reused", 0) or 0) for r in runs)
+    return reused / max(total, 1)
+
+
+# Demo data — a PACS run on the torch + numpy conflict fixture.
+_PACS_CONFLICT_RUN: dict[str, Any] = {
+    "task": "pacs-conflict",
+    "project": "tests/fixtures/torch-numpy-conflict",
+    "success": True,
+    "n_attempts": 3,
+    "t_success": 48.2,
+    "constraints_reused": 0,
+    "lock_file": "lock-requirements.txt",
+    "steps": [
+        {"tool_calls": [{"name": "parse_deps", "arguments": {"project_path": "tests/fixtures/torch-numpy-conflict"}}]},
+        {"tool_calls": [{"name": "env_create", "arguments": {"label": "naive", "env_id": "v0"}}]},
+        {"tool_calls": [{"name": "env_run", "arguments": {"specs": [{"env_id": "v0", "label": "naive", "packages": ["torch==2.0.1", "numpy==2.0.0"]}]}}]},
+        {"tool_calls": [{"name": "parse_failure", "arguments": {"log_path": "..."}}]},
+        {"tool_calls": [{"name": "infer_constraints", "arguments": {"constraints": [{"pkg_a": "torch", "ver_a": "2.0.1", "pkg_b": "numpy", "ver_b": "2.0.0", "kind": "observed"}]}}]},
+        {"tool_calls": [{"name": "generate_combinations", "arguments": {"dependencies": [{"name": "torch", "specifier": ">=2.0"}, {"name": "numpy", "specifier": ">=1.24"}], "constraints": [{"pkg_a": "torch", "ver_a": "2.0.1", "pkg_b": "numpy", "ver_b": "2.0.0"}]}}]},
+        {"tool_calls": [{"name": "env_create", "arguments": {"label": "candidate-1", "env_id": "v1"}}]},
+        {"tool_calls": [{"name": "env_create", "arguments": {"label": "candidate-2", "env_id": "v2"}}]},
+        {"tool_calls": [{"name": "env_run", "arguments": {"specs": [{"env_id": "v1", "label": "c1", "packages": ["torch==2.1.0", "numpy==1.26.0"]}, {"env_id": "v2", "label": "c2", "packages": ["torch==2.0.1", "numpy==1.24.0"]}], "max_workers": 2}}]},
+        {"tool_calls": [{"name": "env_cleanup", "arguments": {}}]},
+    ],
+}
+
+# Second run on the same project — constraints are known, fewer attempts.
+_PACS_CONFLICT_RUN2: dict[str, Any] = {
+    "task": "pacs-conflict",
+    "project": "tests/fixtures/torch-numpy-conflict",
+    "success": True,
+    "n_attempts": 1,
+    "t_success": 12.1,
+    "constraints_reused": 2,
+    "lock_file": "lock-requirements.txt",
+}
+PACS_DEMO_RUNS: list[dict[str, Any]] = [_PACS_CONFLICT_RUN, _PACS_CONFLICT_RUN2]
+
+
+# -- serial baseline sample (B3 ablation) -------------------------------------
+
+_SERIAL_CONFLICT_RUN: dict[str, Any] = {
+    "task": "pacs-conflict-serial",
+    "project": "tests/fixtures/torch-numpy-conflict",
+    "success": True,
+    "n_attempts": 7,
+    "t_success": 173.5,
+    "mode": "serial",
+}
+_PACS_PARALLEL_RUN: dict[str, Any] = {
+    "task": "pacs-conflict-parallel",
+    "project": "tests/fixtures/torch-numpy-conflict",
+    "success": True,
+    "n_attempts": 3,
+    "t_success": 48.2,
+    "mode": "parallel",
+}
+PACS_ABLATION_RUNS: list[dict[str, Any]] = [_SERIAL_CONFLICT_RUN, _PACS_PARALLEL_RUN]
+
+
 if __name__ == "__main__":
     from eval.tasks import SAMPLE_TASKS
     recs = SAMPLE_RECORDS

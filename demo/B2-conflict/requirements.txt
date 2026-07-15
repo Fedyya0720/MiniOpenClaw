@@ -1,0 +1,9 @@
+black>=23.0.0
+click>=7.1.2
+pytest>=7.2.0
+pytest-xdist>=3.0.0
+execnet==1.8.0
+pydantic>=2.0.0
+email-validator>=2.0.0
+dnspython==1.16.0
+isort>=5.11.0

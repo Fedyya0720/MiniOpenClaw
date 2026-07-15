@@ -16,5 +16,8 @@ Pillow>=10.0         # 图片缩放（backend/image_util.py），不装则跳过
 rich>=13.0           # 终端美化：Panel / Live 流式渲染
 prompt_toolkit>=3.0  # REPL 输入：历史记录、多行编辑
 
+# --- PACS 有限版本域 SAT/SMT（不可用时诚实回退有界枚举）---
+z3-solver>=4.13,<5
+
 # 说明：本课程大脑走 DeepSeek API，不本地部署模型、不做 LoRA，故无需 vllm/peft/torch 等重依赖。
 # （Day2 的 nanoGPT 实验请用单独的 conda 环境安装 torch，避免污染 agent 环境。）

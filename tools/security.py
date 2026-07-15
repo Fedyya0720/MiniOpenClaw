@@ -61,6 +61,7 @@ DANGEROUS_PATTERNS = [
     "curl | sh",
     "wget -O - | bash",
     "wget -O - | sh",
+    "--break-system-packages",
     "shutdown",
     "reboot",
 ]

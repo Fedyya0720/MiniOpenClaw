@@ -18,6 +18,8 @@ from pathlib import Path
 from tools.base import ToolRegistry
 from agent.context import resolve_token_budget
 from agent.strategy import run_react_turns
+from agent.trace import ToolRunTrace
+from agent.tracer import Tracer
 
 
 class AgentLoop:
@@ -35,6 +37,7 @@ class AgentLoop:
         self.spill_threshold = spill_threshold
         self.auto_approve = auto_approve
         self.workdir = (workdir or Path.cwd()).resolve()
+        self.last_tracer: Tracer | None = None
 
     def run(self, user_task: str, images: list[str] | None = None) -> str:
         # 构建 user 消息：纯文本 or 文本+图片内容块
@@ -51,6 +54,8 @@ class AgentLoop:
             {"role": "user", "content": content},
         ]
 
+        trace = ToolRunTrace(self.workdir)
+        self.last_tracer = Tracer.for_run(self.workdir, trace.run_id)
         return run_react_turns(
             self.backend.chat,
             self.registry,
@@ -60,4 +65,6 @@ class AgentLoop:
             spill_threshold=self.spill_threshold,
             auto_approve=self.auto_approve,
             workdir=self.workdir,
+            trace=trace,
+            tracer=self.last_tracer,
         )
