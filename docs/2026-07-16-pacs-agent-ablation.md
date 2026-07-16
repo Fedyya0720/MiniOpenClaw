@@ -138,21 +138,21 @@ Traditional Agent 并非完全无法找到兼容环境：所有 trials 最终都
 
 ### 共同 60-turn Agent A/B
 
-- [Raw trials](artifacts/2026-07-16-pacs-ablation-60turn/agent-trials-raw.jsonl)
-- [Raw summary](artifacts/2026-07-16-pacs-ablation-60turn/agent-summary-raw.json)
-- [Final path-gate summary](artifacts/2026-07-16-pacs-ablation-60turn/agent-summary-path-gate-v2.json)
-- [Run manifest](artifacts/2026-07-16-pacs-ablation-60turn/run-manifest.json)
+- [Raw trials](reports/artifacts/2026-07-16-pacs-ablation-60turn/agent-trials-raw.jsonl)
+- [Raw summary](reports/artifacts/2026-07-16-pacs-ablation-60turn/agent-summary-raw.json)
+- [Final path-gate summary](reports/artifacts/2026-07-16-pacs-ablation-60turn/agent-summary-path-gate-v2.json)
+- [Run manifest](reports/artifacts/2026-07-16-pacs-ablation-60turn/run-manifest.json)
 
 ### PACS 复杂机制实验
 
-- [Parallel-speed raw trials](artifacts/2026-07-16-pacs-complex-factorial/parallel-speed/trials.jsonl)
-- [Parallel-speed summary](artifacts/2026-07-16-pacs-complex-factorial/parallel-speed/summary.json)
-- [Pruning-amplifier raw trials](artifacts/2026-07-16-pacs-complex-factorial/pruning-amplifier/trials.jsonl)
-- [Pruning-amplifier summary](artifacts/2026-07-16-pacs-complex-factorial/pruning-amplifier/summary.json)
+- [Parallel-speed raw trials](reports/artifacts/2026-07-16-pacs-complex-factorial/parallel-speed/trials.jsonl)
+- [Parallel-speed summary](reports/artifacts/2026-07-16-pacs-complex-factorial/parallel-speed/summary.json)
+- [Pruning-amplifier raw trials](reports/artifacts/2026-07-16-pacs-complex-factorial/pruning-amplifier/trials.jsonl)
+- [Pruning-amplifier summary](reports/artifacts/2026-07-16-pacs-complex-factorial/pruning-amplifier/summary.json)
 
 ### PACS 微型负对照
 
-- [Raw trials](artifacts/2026-07-16-pacs-ablation/factorial-trials.jsonl)
-- [Summary](artifacts/2026-07-16-pacs-ablation/factorial-summary.json)
+- [Raw trials](reports/artifacts/2026-07-16-pacs-ablation/factorial-trials.jsonl)
+- [Summary](reports/artifacts/2026-07-16-pacs-ablation/factorial-summary.json)
 
 实验校准、问题处理和审计记录见：[PACS 消融实验审计记录](2026-07-16-pacs-agent-ablation-audit.md)。
