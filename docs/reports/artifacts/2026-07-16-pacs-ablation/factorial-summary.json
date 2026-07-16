@@ -1,0 +1,99 @@
+{
+  "variants": {
+    "serial-naive": {
+      "trials": 5,
+      "success_rate": 1.0,
+      "seconds": {
+        "median": 3.582333018999634,
+        "iqr": 0.03433822999977565
+      },
+      "attempted": {
+        "median": 3.0,
+        "iqr": 0.0
+      },
+      "preflights": {
+        "median": 3.0,
+        "iqr": 0.0
+      },
+      "excluded_by_constraints": {
+        "median": 0.0,
+        "iqr": 0.0
+      }
+    },
+    "serial-pruning": {
+      "trials": 5,
+      "success_rate": 1.0,
+      "seconds": {
+        "median": 3.361532987000828,
+        "iqr": 0.06916226800058212
+      },
+      "attempted": {
+        "median": 2.0,
+        "iqr": 0.0
+      },
+      "preflights": {
+        "median": 2.0,
+        "iqr": 0.0
+      },
+      "excluded_by_constraints": {
+        "median": 3.0,
+        "iqr": 0.0
+      }
+    },
+    "parallel-naive": {
+      "trials": 5,
+      "success_rate": 1.0,
+      "seconds": {
+        "median": 5.434119424999153,
+        "iqr": 0.07400899399908667
+      },
+      "attempted": {
+        "median": 5.0,
+        "iqr": 0.0
+      },
+      "preflights": {
+        "median": 5.0,
+        "iqr": 0.0
+      },
+      "excluded_by_constraints": {
+        "median": 0.0,
+        "iqr": 0.0
+      }
+    },
+    "parallel-pruning": {
+      "trials": 5,
+      "success_rate": 1.0,
+      "seconds": {
+        "median": 5.10376861199984,
+        "iqr": 0.28478482799982885
+      },
+      "attempted": {
+        "median": 4.0,
+        "iqr": 0.0
+      },
+      "preflights": {
+        "median": 4.0,
+        "iqr": 0.0
+      },
+      "excluded_by_constraints": {
+        "median": 3.0,
+        "iqr": 0.0
+      }
+    }
+  },
+  "paired_effects": {
+    "blocks": 5,
+    "parallel_seconds_saved": {
+      "median": -1.7990905799997563,
+      "iqr": 0.033679760500490374
+    },
+    "pruning_seconds_saved": {
+      "median": 0.28788005900059943,
+      "iqr": 0.03287690499928431
+    },
+    "parallel_by_pruning_interaction_seconds": {
+      "median": 0.1695497719993,
+      "iqr": 0.06668780299696664
+    }
+  }
+}

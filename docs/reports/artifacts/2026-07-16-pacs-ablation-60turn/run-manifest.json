@@ -1,0 +1,17 @@
+{
+  "fixture": "real-conflict",
+  "blocks": 5,
+  "max_turns": 60,
+  "trial_timeout_seconds": 600.0,
+  "seed": 20260716,
+  "git_revision": "6252d412694e9b17f773c4f60823736f4c440659",
+  "python": "3.13.13 | packaged by Anaconda, Inc. | (main, Apr 14 2026, 06:19:41) [GCC 14.3.0]",
+  "python_executable": "/home/l/miniconda3/bin/python",
+  "model": "deepseek-v4-flash",
+  "base_url": "https://api.deepseek.com",
+  "pip_index_url": null,
+  "pip_trusted_host": null,
+  "workspace_fingerprint_before": "a0776ddad97ec0b855e5f42eeb1ecc3dcca727b6226a4d9a0751139039ede07a",
+  "workspace_fingerprint_after": "a0776ddad97ec0b855e5f42eeb1ecc3dcca727b6226a4d9a0751139039ede07a",
+  "workspace_unchanged": true
+}

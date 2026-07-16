@@ -1,0 +1,105 @@
+{
+  "variants": {
+    "serial-naive": {
+      "trials": 5,
+      "success_rate": 1.0,
+      "seconds": {
+        "median": 5.148177339997346,
+        "iqr": 0.9925041729984514
+      },
+      "attempted": {
+        "median": 4.0,
+        "iqr": 0.0
+      },
+      "preflights": {
+        "median": 4.0,
+        "iqr": 0.0
+      },
+      "excluded_by_constraints": {
+        "median": 0.0,
+        "iqr": 0.0
+      }
+    },
+    "serial-pruning": {
+      "trials": 5,
+      "success_rate": 1.0,
+      "seconds": {
+        "median": 4.302969503998611,
+        "iqr": 0.5376611610008695
+      },
+      "attempted": {
+        "median": 2.0,
+        "iqr": 0.0
+      },
+      "preflights": {
+        "median": 2.0,
+        "iqr": 0.0
+      },
+      "excluded_by_constraints": {
+        "median": 10.0,
+        "iqr": 0.0
+      }
+    },
+    "parallel-naive": {
+      "trials": 5,
+      "success_rate": 1.0,
+      "seconds": {
+        "median": 7.910473035000905,
+        "iqr": 1.3602751409998746
+      },
+      "attempted": {
+        "median": 6.0,
+        "iqr": 0.0
+      },
+      "preflights": {
+        "median": 6.0,
+        "iqr": 0.0
+      },
+      "excluded_by_constraints": {
+        "median": 0.0,
+        "iqr": 0.0
+      }
+    },
+    "parallel-pruning": {
+      "trials": 5,
+      "success_rate": 1.0,
+      "seconds": {
+        "median": 6.573433284997009,
+        "iqr": 0.4901024110004073
+      },
+      "attempted": {
+        "median": 4.0,
+        "iqr": 0.0
+      },
+      "preflights": {
+        "median": 4.0,
+        "iqr": 0.0
+      },
+      "excluded_by_constraints": {
+        "median": 10.0,
+        "iqr": 0.0
+      }
+    }
+  },
+  "paired_effects": {
+    "blocks": 5,
+    "parallel_seconds_saved": {
+      "median": -2.6641939459987043,
+      "iqr": 0.7586884719967202
+    },
+    "pruning_seconds_saved": {
+      "median": 0.949405283003216,
+      "iqr": 0.503152481502184
+    },
+    "parallel_by_pruning_interaction_seconds": {
+      "median": 0.1179658630026097,
+      "iqr": 0.659759395999572
+    }
+  },
+  "acceptance_checks": {
+    "all_verified": true,
+    "winner_rank_checks_pass": true,
+    "broad_exclusion_observed": true
+  },
+  "fixture": "pruning-amplifier"
+}

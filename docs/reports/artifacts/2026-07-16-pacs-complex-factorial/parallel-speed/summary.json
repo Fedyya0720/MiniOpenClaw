@@ -1,0 +1,105 @@
+{
+  "variants": {
+    "serial-naive": {
+      "trials": 5,
+      "success_rate": 1.0,
+      "seconds": {
+        "median": 12.888196440999309,
+        "iqr": 0.3616026720010268
+      },
+      "attempted": {
+        "median": 4.0,
+        "iqr": 0.0
+      },
+      "preflights": {
+        "median": 4.0,
+        "iqr": 0.0
+      },
+      "excluded_by_constraints": {
+        "median": 0.0,
+        "iqr": 0.0
+      }
+    },
+    "serial-pruning": {
+      "trials": 5,
+      "success_rate": 1.0,
+      "seconds": {
+        "median": 13.505332968001312,
+        "iqr": 0.9617041530000279
+      },
+      "attempted": {
+        "median": 4.0,
+        "iqr": 0.0
+      },
+      "preflights": {
+        "median": 4.0,
+        "iqr": 0.0
+      },
+      "excluded_by_constraints": {
+        "median": 0.0,
+        "iqr": 0.0
+      }
+    },
+    "parallel-naive": {
+      "trials": 5,
+      "success_rate": 1.0,
+      "seconds": {
+        "median": 11.31141698400097,
+        "iqr": 0.8275069630035432
+      },
+      "attempted": {
+        "median": 4.0,
+        "iqr": 0.0
+      },
+      "preflights": {
+        "median": 4.0,
+        "iqr": 0.0
+      },
+      "excluded_by_constraints": {
+        "median": 0.0,
+        "iqr": 0.0
+      }
+    },
+    "parallel-pruning": {
+      "trials": 5,
+      "success_rate": 1.0,
+      "seconds": {
+        "median": 11.215095630002907,
+        "iqr": 1.3141602169998805
+      },
+      "attempted": {
+        "median": 4.0,
+        "iqr": 0.0
+      },
+      "preflights": {
+        "median": 4.0,
+        "iqr": 0.0
+      },
+      "excluded_by_constraints": {
+        "median": 0.0,
+        "iqr": 0.0
+      }
+    }
+  },
+  "paired_effects": {
+    "blocks": 5,
+    "parallel_seconds_saved": {
+      "median": 1.7363923145003355,
+      "iqr": 0.40694673100188083
+    },
+    "pruning_seconds_saved": {
+      "median": -0.6102769750013977,
+      "iqr": 1.208035948997349
+    },
+    "parallel_by_pruning_interaction_seconds": {
+      "median": 0.5129729680011224,
+      "iqr": 1.3325069480015372
+    }
+  },
+  "acceptance_checks": {
+    "all_verified": true,
+    "winner_rank_checks_pass": true,
+    "broad_exclusion_observed": true
+  },
+  "fixture": "parallel-speed"
+}

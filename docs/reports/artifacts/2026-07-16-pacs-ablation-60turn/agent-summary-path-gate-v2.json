@@ -1,0 +1,149 @@
+{
+  "source_trials": "/tmp/miniopenclaw-agent-ablation-formal-60-5blocks-20260716-a/trials.jsonl",
+  "rule": "accept independently verified full environment path or unique environment ID in final response",
+  "reclassified_rows": [
+    {
+      "block": 1,
+      "variant": "pacs-agent",
+      "old_agent_completed": false,
+      "new_agent_completed": true,
+      "old_success": false,
+      "new_success": true
+    },
+    {
+      "block": 5,
+      "variant": "pacs-agent",
+      "old_agent_completed": false,
+      "new_agent_completed": true,
+      "old_success": false,
+      "new_success": true
+    }
+  ],
+  "summary": {
+    "traditional-agent": {
+      "trials": 5,
+      "success_rate": 0.8,
+      "cap_hit_rate": 0.2,
+      "termination_reasons": {
+        "completed": 4,
+        "max_turns": 1
+      },
+      "isolation_success_rate": 1.0,
+      "terminal_seconds": {
+        "median": 260.8677317370002,
+        "iqr": 33.35832925300201
+      },
+      "turns": {
+        "median": 56.0,
+        "iqr": 1.0
+      },
+      "tool_calls": {
+        "median": 64.0,
+        "iqr": 3.0
+      },
+      "tokens": {
+        "median": 1373589.0,
+        "iqr": 384607.0
+      },
+      "installation_requests": {
+        "median": 10.0,
+        "iqr": 2.0
+      },
+      "candidate_attempts": null
+    },
+    "pacs-agent": {
+      "trials": 5,
+      "success_rate": 1.0,
+      "cap_hit_rate": 0.0,
+      "termination_reasons": {
+        "completed": 5
+      },
+      "isolation_success_rate": 1.0,
+      "terminal_seconds": {
+        "median": 47.68085741200048,
+        "iqr": 6.681657309001821
+      },
+      "turns": {
+        "median": 12.0,
+        "iqr": 2.0
+      },
+      "tool_calls": {
+        "median": 13.0,
+        "iqr": 1.0
+      },
+      "tokens": {
+        "median": 88981.0,
+        "iqr": 21341.0
+      },
+      "installation_requests": {
+        "median": 1.0,
+        "iqr": 0.0
+      },
+      "candidate_attempts": {
+        "median": 4.0,
+        "iqr": 0.0
+      }
+    },
+    "paired": {
+      "blocks": 5,
+      "both_successful": 4,
+      "pacs_only_successful": 1,
+      "traditional_only_successful": 0,
+      "all_measurable_blocks_terminal_resource_contrast": {
+        "time_ratio_traditional_over_pacs": {
+          "median": 5.565069178185908,
+          "iqr": 2.0044206146043453
+        },
+        "turn_reduction_traditional_minus_pacs": {
+          "median": 43.0,
+          "iqr": 3.0
+        },
+        "tool_call_reduction_traditional_minus_pacs": {
+          "median": 50.0,
+          "iqr": 13.0
+        },
+        "token_reduction_traditional_minus_pacs": {
+          "median": 1270369.0,
+          "iqr": 580263.0
+        }
+      },
+      "unmeasurable_blocks": 0,
+      "both_successful_blocks": {
+        "blocks": 4,
+        "completion_performance": {
+          "time_ratio_traditional_over_pacs": {
+            "median": 5.71619577978771,
+            "iqr": 1.1782923076676965
+          },
+          "turn_reduction_traditional_minus_pacs": {
+            "median": 43.5,
+            "iqr": 2.75
+          },
+          "tool_call_reduction_traditional_minus_pacs": {
+            "median": 50.5,
+            "iqr": 5.75
+          },
+          "token_reduction_traditional_minus_pacs": {
+            "median": 1341058.0,
+            "iqr": 265518.5
+          }
+        }
+      }
+    },
+    "cap_assessment": {
+      "eligible_blocks": 5,
+      "checks": {
+        "traditional-agent_success_rate_at_least_80_percent": true,
+        "traditional-agent_cap_hit_rate_at_most_20_percent": true,
+        "traditional-agent_successful_median_turns_has_10_percent_headroom": false,
+        "pacs-agent_success_rate_at_least_80_percent": true,
+        "pacs-agent_cap_hit_rate_at_most_20_percent": true,
+        "pacs-agent_successful_median_turns_has_10_percent_headroom": true,
+        "both_successful_blocks_at_least_60_percent": true,
+        "all_trials_isolated": true,
+        "no_worker_timeout": true
+      },
+      "accepted_for_completion_time_comparison": false
+    }
+  }
+}

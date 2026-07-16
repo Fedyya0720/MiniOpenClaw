@@ -1,0 +1,159 @@
+{
+  "source_trials": "/tmp/miniopenclaw-agent-ablation-real-corrected-5blocks-20260716-a/trials.jsonl",
+  "metric_definition": "env_run packages spec OR env_run argv containing pip+install OR bash containing pip install OR pacs_build",
+  "recomputed_rows": [
+    {
+      "block": 1,
+      "variant": "traditional-agent",
+      "recorded": 5,
+      "installation_requests_v2": 5,
+      "trace_path": "/tmp/miniopenclaw-agent-ablation-real-corrected-5blocks-20260716-a/block-1-traditional-agent/project/.mini-openclaw/agent-runs/20260716T051221808538Z-14b1ece1fa21/trace.jsonl"
+    },
+    {
+      "block": 1,
+      "variant": "pacs-agent",
+      "recorded": 2,
+      "installation_requests_v2": 2,
+      "trace_path": "/tmp/miniopenclaw-agent-ablation-real-corrected-5blocks-20260716-a/block-1-pacs-agent/project/.mini-openclaw/agent-runs/20260716T051416198171Z-df58a55a7e31/trace.jsonl"
+    },
+    {
+      "block": 2,
+      "variant": "pacs-agent",
+      "recorded": 8,
+      "installation_requests_v2": 10,
+      "trace_path": "/tmp/miniopenclaw-agent-ablation-real-corrected-5blocks-20260716-a/block-2-pacs-agent/project/.mini-openclaw/agent-runs/20260716T051516835568Z-7131e01ffbc7/trace.jsonl"
+    },
+    {
+      "block": 2,
+      "variant": "traditional-agent",
+      "recorded": 3,
+      "installation_requests_v2": 3,
+      "trace_path": "/tmp/miniopenclaw-agent-ablation-real-corrected-5blocks-20260716-a/block-2-traditional-agent/project/.mini-openclaw/agent-runs/20260716T051657896483Z-0ce066828ad2/trace.jsonl"
+    },
+    {
+      "block": 3,
+      "variant": "pacs-agent",
+      "recorded": 1,
+      "installation_requests_v2": 1,
+      "trace_path": "/tmp/miniopenclaw-agent-ablation-real-corrected-5blocks-20260716-a/block-3-pacs-agent/project/.mini-openclaw/agent-runs/20260716T051835069862Z-247649db8386/trace.jsonl"
+    },
+    {
+      "block": 3,
+      "variant": "traditional-agent",
+      "recorded": 6,
+      "installation_requests_v2": 7,
+      "trace_path": "/tmp/miniopenclaw-agent-ablation-real-corrected-5blocks-20260716-a/block-3-traditional-agent/project/.mini-openclaw/agent-runs/20260716T051934293430Z-b948e35a5890/trace.jsonl"
+    },
+    {
+      "block": 4,
+      "variant": "traditional-agent",
+      "recorded": 2,
+      "installation_requests_v2": 9,
+      "trace_path": "/tmp/miniopenclaw-agent-ablation-real-corrected-5blocks-20260716-a/block-4-traditional-agent/project/.mini-openclaw/agent-runs/20260716T052148449555Z-2468777ce02c/trace.jsonl"
+    },
+    {
+      "block": 4,
+      "variant": "pacs-agent",
+      "recorded": 1,
+      "installation_requests_v2": 1,
+      "trace_path": "/tmp/miniopenclaw-agent-ablation-real-corrected-5blocks-20260716-a/block-4-pacs-agent/project/.mini-openclaw/agent-runs/20260716T052418154566Z-1916233c6021/trace.jsonl"
+    },
+    {
+      "block": 5,
+      "variant": "traditional-agent",
+      "recorded": 2,
+      "installation_requests_v2": 7,
+      "trace_path": "/tmp/miniopenclaw-agent-ablation-real-corrected-5blocks-20260716-a/block-5-traditional-agent/project/.mini-openclaw/agent-runs/20260716T052520923750Z-8116cf99995d/trace.jsonl"
+    },
+    {
+      "block": 5,
+      "variant": "pacs-agent",
+      "recorded": 1,
+      "installation_requests_v2": 1,
+      "trace_path": "/tmp/miniopenclaw-agent-ablation-real-corrected-5blocks-20260716-a/block-5-pacs-agent/project/.mini-openclaw/agent-runs/20260716T052653641354Z-a9116a700736/trace.jsonl"
+    }
+  ],
+  "summary_v2": {
+    "traditional-agent": {
+      "trials": 5,
+      "success_rate": 0.0,
+      "terminal_seconds": {
+        "median": 114.01215800799946,
+        "iqr": 37.04751488600232
+      },
+      "turns": {
+        "median": 30.0,
+        "iqr": 0.0
+      },
+      "tool_calls": {
+        "median": 33.0,
+        "iqr": 4.0
+      },
+      "tokens": {
+        "median": 390553.0,
+        "iqr": 48445.0
+      },
+      "installation_requests": {
+        "median": 7.0,
+        "iqr": 2.0
+      },
+      "candidate_attempts": null
+    },
+    "pacs-agent": {
+      "trials": 5,
+      "success_rate": 0.8,
+      "terminal_seconds": {
+        "median": 60.19741963800152,
+        "iqr": 3.554856357999597
+      },
+      "turns": {
+        "median": 15.0,
+        "iqr": 5.0
+      },
+      "tool_calls": {
+        "median": 19.0,
+        "iqr": 1.0
+      },
+      "tokens": {
+        "median": 128825.0,
+        "iqr": 35801.0
+      },
+      "installation_requests": {
+        "median": 1.0,
+        "iqr": 1.0
+      },
+      "candidate_attempts": {
+        "median": 4.0,
+        "iqr": 0.0
+      }
+    },
+    "paired": {
+      "blocks": 5,
+      "both_successful": 0,
+      "pacs_only_successful": 4,
+      "traditional_only_successful": 0,
+      "all_complete_blocks_terminal_resource_contrast": {
+        "time_ratio_traditional_over_pacs": {
+          "median": 2.272314249863627,
+          "iqr": 0.49806110440396045
+        },
+        "turn_reduction_traditional_minus_pacs": {
+          "median": 15.0,
+          "iqr": 5.0
+        },
+        "tool_call_reduction_traditional_minus_pacs": {
+          "median": 15.0,
+          "iqr": 6.0
+        },
+        "token_reduction_traditional_minus_pacs": {
+          "median": 234381.0,
+          "iqr": 39991.0
+        }
+      },
+      "both_successful_blocks": {
+        "blocks": 0,
+        "completion_performance": null
+      }
+    }
+  }
+}
